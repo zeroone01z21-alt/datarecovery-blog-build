@@ -1,0 +1,127 @@
+[blog]
+other = "Blog"
+
+[home]
+other = "Home"
+
+[about]
+other = "About Us"
+
+[services]
+other = "Our Services"
+
+[work]
+other = "Our Work"
+
+[contact]
+other = "Contact Us"
+
+[otherLang]
+other = "العربية"
+
+[readingTime]
+other = "min read"
+
+[published]
+other = "Published"
+
+[updated]
+other = "Updated"
+
+[allPosts]
+other = "All articles"
+
+[category]
+other = "Category"
+
+[categories]
+other = "Categories"
+
+[browseCategories]
+other = "Browse by category"
+
+[categoriesIntro]
+other = "Explore practical articles across the data recovery areas we cover."
+
+[articlesCount]
+other = "Articles"
+
+[noPostsInCategory]
+other = "No articles in this category yet."
+
+[allCategories]
+other = "All categories"
+
+[noPosts]
+other = "No articles yet."
+
+[backToBlog]
+other = "Back to the blog"
+
+[backArrow]
+other = "←"
+
+[notFound]
+other = "Page not found"
+
+[notFoundMsg]
+other = "This page does not exist, or its address has changed."
+
+[notFoundDescription]
+other = "The page you requested could not be found. Browse the latest Zero 2 One Data Recovery articles or return to the main website."
+
+[feedTitle]
+other = "Zero 2 One Data Recovery Blog RSS"
+
+[feedDescription]
+other = "Practical data recovery articles from Zero 2 One Data Recovery in Riyadh."
+
+[rights]
+other = "All rights reserved."
+
+[socials]
+other = "Socials"
+
+[testimonials]
+other = "Testimonials"
+
+[mainNavigation]
+other = "Main navigation"
+
+[menu]
+other = "Menu"
+
+[openMenu]
+other = "Navigation menu"
+
+[blogEyebrow]
+other = "Diagnose. Recover. Protect."
+
+[latestArticles]
+other = "Latest articles"
+
+[emptyEyebrow]
+other = "The next chapter"
+
+[emptyTitle]
+other = "Fresh thinking is on the way."
+
+[emptyBody]
+other = "Our first articles are being prepared. Until then, explore how Zero 2 One Data Recovery can help you get your data back."
+
+[exploreServices]
+other = "Explore our services"
+
+[startConversation]
+other = "Request a case assessment"
+
+[visitUs]
+other = "Visit us"
+
+[talkToUs]
+other = "Talk to us"
+[quickLinks]
+other = "Quick links"
+
+[brandName]
+other = "Zero 2 One Data Recovery"

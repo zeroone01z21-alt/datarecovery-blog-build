@@ -1,0 +1,184 @@
+{{- /*
+  طبقة SEO — القسم 8.2
+  tools/check_seo.py يفرض عناصر الصفحة وعلاقات hreflang وJSON-LD قبل النشر،
+  بينما check_indexing.py يغطي الخرائط وRSS وIndexNow.
+*/ -}}
+{{- $isPost := eq .Kind "page" -}}
+{{- $is404 := eq .Kind "404" -}}
+{{- $isPreview := eq hugo.Environment "preview" -}}
+{{- /*
+  صورة المشاركة من موارد حزمة الصفحة.
+  ⚠️ لا تبنِ الرابط بـ (printf "%s%s" .Permalink $name): Hugo يضع موارد
+  الحزمة في مجلد اللغة الافتراضية وحده، فيعطي ذلك مسارًا غير موجود على
+  النسخة العربية (404 صامت في معاينة الرابط). اسأل المورد عن رابطه.
+*/ -}}
+{{- $img := cond (eq .Lang "ar") .Site.Params.defaultImageAr .Site.Params.defaultImage -}}
+{{- with .Params.featured_image -}}
+  {{- with $.Resources.GetMatch . }}{{ $img = .Permalink }}{{ end -}}
+{{- end -}}
+{{- $desc := cond $is404 (T "notFoundDescription") (.Description | default .Site.Params.description | default .Summary) -}}
+{{- $pageTitle := cond $is404 (T "notFound") (cond .IsHome .Site.Title .Title) -}}
+{{- $documentTitle := $pageTitle -}}
+{{- if not .IsHome -}}
+  {{- $brandedTitle := printf "%s — %s" $pageTitle .Site.Title -}}
+  {{- /* لا نفشل عنوانًا يسمح به عقد المحتوى لمجرد إضافة اسم المدونة. */ -}}
+  {{- if le (strings.RuneCount $brandedTitle) 70 }}
+    {{- $documentTitle = $brandedTitle -}}
+  {{- end -}}
+{{- end -}}
+
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>{{ $documentTitle }}</title>
+<meta name="description" content="{{ $desc | plainify | truncate 160 "" }}">
+{{- /*
+  لغة بلا مقالات: صفحة قائمة فارغة تُفهرَس كصفحة رقيقة وتُضعف تقييم النطاق.
+  نمنع فهرستها ما دامت فارغة، ويرفع المنع نفسه تلقائيًّا فور نشر أول مقال —
+  فلا يبقى `noindex` منسيًّا على صفحة صارت ذات قيمة.
+  `follow` لا `nofollow`: الروابط منها إلى الخدمات وصفحة التواصل تبقى نافذة.
+*/ -}}
+{{- $emptySection := and (or .IsHome (eq .Kind "section") (eq .Kind "term")) (eq (len .RegularPagesRecursive) 0) -}}
+{{- if $isPreview }}
+<meta name="robots" content="noindex, nofollow, noarchive">
+{{- else if $is404 }}
+<meta name="robots" content="noindex, follow">
+{{- else if $emptySection }}
+<meta name="robots" content="noindex, follow">
+{{- end }}
+<link rel="canonical" href="{{ .Permalink }}">
+
+{{/* الصفحة الحالية دائمًا hreflang ذاتي، حتى لو كان المقال بلغة واحدة فقط. */}}
+<link rel="alternate" hreflang="{{ .Lang }}" href="{{ .Permalink }}">
+{{- range .Translations }}
+<link rel="alternate" hreflang="{{ .Lang }}" href="{{ .Permalink }}">
+{{- end }}
+{{/* ⚠️ العربية هي لغة الجذر هنا (‏/blog/‏ بلا بادئة) والإنجليزية في /blog/en/‏ —
+     عكس المرجع تمامًا. لذلك x-default يشير إلى العربية، مطابقةً للموقع الذي
+     يجعل x-default جذر النطاق. عكسُه يرسل زائرًا مجهول اللغة إلى النسخة
+     الفرعية ويترك الجذر بلا مرشَّح افتراضي. */}}
+{{- $ar := "" }}{{ range .AllTranslations }}{{ if eq .Lang "ar" }}{{ $ar = .Permalink }}{{ end }}{{ end }}
+{{- if $ar }}
+<link rel="alternate" hreflang="x-default" href="{{ $ar }}">
+{{- end }}
+
+{{/* بطاقات المشاركة — القسم 8.5: عنوان وصورة خاصان بكل مقال */}}
+<meta property="og:type" content="{{ if $isPost }}article{{ else }}website{{ end }}">
+<meta property="og:site_name" content="{{ .Site.Params.organization }}">
+<meta property="og:locale" content="{{ if eq .Lang "ar" }}ar_SA{{ else }}en_US{{ end }}">
+<meta property="og:title" content="{{ $pageTitle }}">
+<meta property="og:description" content="{{ $desc | plainify | truncate 160 "" }}">
+<meta property="og:url" content="{{ .Permalink }}">
+<meta property="og:image" content="{{ $img }}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="{{ .Params.featured_image_alt | default .Site.Params.organization }}">
+{{- if $isPost }}
+<meta property="article:published_time" content="{{ .Date.Format "2006-01-02T15:04:05Z07:00" }}">
+<meta property="article:modified_time" content="{{ .Lastmod.Format "2006-01-02T15:04:05Z07:00" }}">
+{{- end }}
+
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{ $pageTitle }}">
+<meta name="twitter:description" content="{{ $desc | plainify | truncate 160 "" }}">
+<meta name="twitter:image" content="{{ $img }}">
+
+{{/* اكتشاف RSS — رابط feed اللغة الحالية من كل صفحة */}}
+{{- with .Site.Home.OutputFormats.Get "RSS" }}
+<link rel="alternate" type="{{ .MediaType.Type }}" href="{{ .Permalink }}" title="{{ T "feedTitle" }}">
+{{- end }}
+
+{{/* الخطوط مستضافة ذاتيًّا — تحميل مسبق للوزن الأساسي فقط (بند 13) */}}
+{{/* relURL يبني المسار من baseURL — لا تكتبه يدويًّا:
+     مسار مثل "/blog/css/..." يكسر أي معاينة أو نطاق فرعي لا يطابق
+     الإنتاج حرفيًّا، وينكشف كصفحة بلا تنسيق بعد النشر. */}}
+<link rel="preload" as="font" type="font/woff2" crossorigin
+      href="{{ (printf "fonts/%s.woff2" (cond (eq .Lang "ar") "cairo-arabic-400" "nm-400")) | relURL }}">
+{{- /* CSS الموقع أولًا: التنقّل والبرغر والقائمة الجانبية والفوتر تعتمد
+       عليه بالكامل. بنفس بصمة ?v= المستخدمة على الموقع، فالمتصفح يصيب
+       ذاكرته ولا يُنزّله ثانيةً عند الانتقال بين الموقع والمدونة. */ -}}
+{{ partial "site-css.html" . }}
+{{- /*
+  ⚠️ لا تُعِد هذين إلى static/ ولا تحذف fingerprint.
+
+  ‏.htaccess الموقع يفرض على كل .css و .js:
+      Cache-Control: public, max-age=31536000, immutable
+  وهي سياسة صحيحة **بشرط** أن يتغيّر اسم الملف حين يتغيّر محتواه — وهذا
+  ما يفعله الموقع ببصمة ?v=. رابط ثابت مع immutable يعني أن المتصفح
+  والـCDN يحتفظان بالنسخة القديمة **سنةً كاملة**: ينجح النشر، ويبقى
+  الزائر العائد يرى التصميم القديم، ولا شيء في السجلّات يشير إلى خطأ.
+
+  fingerprint يضع تجزئة المحتوى في اسم الملف، فيصير الرابط جديدًا مع كل
+  تعديل حقيقي، ويبقى ثابتًا حين لا يتغيّر شيء فلا نُبطل ذاكرة بلا سبب.
+
+  وfonts.css يبقى في مجلد fonts/ بعد البصم، فمسارات url() النسبية إلى
+  ملفات woff2 في static/fonts تظل صحيحة.
+*/ -}}
+{{- $fonts := resources.Get "fonts/fonts.css" | minify | fingerprint "sha256" -}}
+{{- $blog  := resources.Get "css/blog.css"    | minify | fingerprint "sha256" -}}
+<link rel="stylesheet" href="{{ $fonts.RelPermalink }}">
+{{- /* CSS المدونة بعده: يخصّ تنسيق المقال وحده ولا يمسّ هيكل الموقع */ -}}
+<link rel="stylesheet" href="{{ $blog.RelPermalink }}">
+{{ partial "analytics.html" . }}
+
+{{/* بيانات منظّمة: Article + BreadcrumbList، مربوطة بكيان المنظمة على الموقع */}}
+{{- if $isPost }}
+<script type="application/ld+json">
+{{ dict
+  "@context" "https://schema.org"
+  "@type" "BlogPosting"
+  "headline" .Title
+  "description" ($desc | plainify | truncate 160 "")
+  "image" (slice $img)
+  "datePublished" (.Date.Format "2006-01-02T15:04:05Z07:00")
+  "dateModified" (.Lastmod.Format "2006-01-02T15:04:05Z07:00")
+  "inLanguage" .Lang
+  "mainEntityOfPage" (dict "@type" "WebPage" "@id" .Permalink)
+  "author" (dict "@id" .Site.Params.organizationId)
+  "publisher" (dict "@id" .Site.Params.organizationId)
+  | jsonify (dict "indent" "  ") | safeJS }}
+</script>
+<script type="application/ld+json">
+{{ dict
+  "@context" "https://schema.org"
+  "@type" "BreadcrumbList"
+  "itemListElement" (slice
+    (dict "@type" "ListItem" "position" 1 "name" .Site.Params.organization "item" "https://datarecovery-sa.com/")
+    (dict "@type" "ListItem" "position" 2 "name" .Site.Title "item" (printf "%s" .Site.BaseURL))
+    (dict "@type" "ListItem" "position" 3 "name" .Title "item" .Permalink))
+  | jsonify (dict "indent" "  ") | safeJS }}
+</script>
+{{- else if not $is404 }}
+{{- /*
+  الصفحة الرئيسية وأرشيفات التصنيف ليست Article. وصفها بـCollectionPage
+  يمنح محركات البحث نوعًا صحيحًا بدل وضع schema مقال وهمي على قائمة.
+*/ -}}
+<script type="application/ld+json">
+{{ dict
+  "@context" "https://schema.org"
+  "@type" "CollectionPage"
+  "@id" .Permalink
+  "url" .Permalink
+  "name" .Title
+  "description" ($desc | plainify | truncate 160 "")
+  "inLanguage" .Lang
+  "isPartOf" (dict "@type" "Blog" "@id" .Site.Home.Permalink "url" .Site.Home.Permalink)
+  "publisher" (dict "@id" .Site.Params.organizationId)
+  | jsonify (dict "indent" "  ") | safeJS }}
+</script>
+{{- $collectionBreadcrumbs := slice
+  (dict "@type" "ListItem" "position" 1 "name" .Site.Params.organization "item" "https://datarecovery-sa.com/")
+  (dict "@type" "ListItem" "position" 2 "name" .Site.Title "item" .Site.Home.Permalink)
+-}}
+{{- if not .IsHome }}
+  {{- $collectionBreadcrumbs = $collectionBreadcrumbs | append
+    (dict "@type" "ListItem" "position" 3 "name" .Title "item" .Permalink) -}}
+{{- end }}
+<script type="application/ld+json">
+{{ dict
+  "@context" "https://schema.org"
+  "@type" "BreadcrumbList"
+  "itemListElement" $collectionBreadcrumbs
+  | jsonify (dict "indent" "  ") | safeJS }}
+</script>
+{{- end }}

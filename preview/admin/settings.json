@@ -1,0 +1,5 @@
+{
+  "backend_repo": "__TODO_REPO_CONTENT__",
+  "backend_branch": "main",
+  "oauth_base_url": "https://sveltia-cms-auth.01team9639.workers.dev"
+}

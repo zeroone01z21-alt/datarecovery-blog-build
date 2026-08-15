@@ -1,0 +1,83 @@
+#!/usr/bin/env python3
+"""أنشئ نسخة محلية شهرية قابلة للتحقق من مصادر Zero 2 One Data Recovery.
+
+لا يحذف هذا الأمر أي نسخة سابقة. يرفض الكتابة فوق مجلد موجود، ويستخدم
+``git clone --mirror`` كي يحفظ كل الفروع والوسوم لا working tree فقط.
+"""
+
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import json
+import subprocess
+from pathlib import Path
+
+
+REPOSITORIES = {
+    "site": "01team9639-maker/datarecovery-sa",
+    "blog-build": "https://github.com/__TODO_REPO_BUILD__.git",
+    "blog-content": "https://github.com/__TODO_REPO_CONTENT__.git",
+}
+
+
+class BackupError(RuntimeError):
+    pass
+
+
+def git(*args: str, cwd: Path | None = None) -> str:
+    try:
+        result = subprocess.run(
+            ["git", *args], cwd=cwd, check=True, capture_output=True, text=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        detail = (exc.stderr or exc.stdout or "git failed").strip()
+        raise BackupError(detail) from exc
+    return result.stdout.strip()
+
+
+def backup(base: Path) -> Path:
+    base = base.expanduser().resolve()
+    if not base.is_dir():
+        raise BackupError(f"مجلد الوجهة غير موجود: {base}")
+    stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    destination = base / f"datarecovery-blog-backup-{stamp}"
+    if destination.exists():
+        raise BackupError(f"مجلد النسخة موجود أصلًا: {destination}")
+    destination.mkdir()
+
+    records = []
+    for name, url in REPOSITORIES.items():
+        mirror = destination / f"{name}.git"
+        print(f"  نسخ {name} …")
+        git("clone", "--mirror", url, str(mirror))
+        git("fsck", "--full", cwd=mirror)
+        commit = git("rev-parse", "refs/heads/main", cwd=mirror)
+        records.append({"name": name, "source": url, "main": commit})
+
+    manifest = {
+        "created_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "format": "git-mirror-v1",
+        "repositories": records,
+    }
+    (destination / "manifest.json").write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8",
+    )
+    print(f"  ✅ النسخة مكتملة: {destination}")
+    return destination
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="نسخة محلية شهرية لمشروع Zero 2 One Data Recovery")
+    parser.add_argument("destination", type=Path, help="مجلد موجود على قرص النسخ")
+    args = parser.parse_args()
+    try:
+        backup(args.destination)
+    except (BackupError, OSError) as exc:
+        print(f"  ❌ فشل النسخ: {exc}")
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -1,0 +1,20 @@
+{{ define "main" }}
+<div class="blog-index category-index">
+  <header class="archive-head">
+    <p class="eyebrow">{{ T "blogEyebrow" }}</p>
+    <h1>{{ T "categories" }}</h1>
+    <p class="blog-intro">{{ T "categoriesIntro" }}</p>
+  </header>
+  {{- with .Pages }}
+  <ul class="category-grid">
+    {{- range .ByTitle }}
+    <li>
+      <h2><a href="{{ .RelPermalink }}">{{ .LinkTitle }}</a></h2>
+      <p>{{ .Description }}</p>
+      <span>{{ T "articlesCount" }}: {{ len (where .Pages "Params.archived" "ne" true) }}</span>
+    </li>
+    {{- end }}
+  </ul>
+  {{- end }}
+</div>
+{{ end }}

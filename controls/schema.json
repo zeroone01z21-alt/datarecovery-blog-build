@@ -1,0 +1,167 @@
+{
+  "$comment": [
+    "عقد الحقول بين blog-content و blog-build — المصدر الواحد.",
+    "يقرأ منه: سكربت التحقق قبل البناء، وإعداد لوحة Sveltia، و ARCHITECTURE.md.",
+    "تعديل هذا الملف يتطلب تحديث controls/fingerprints.txt في نفس العملية،",
+    "وإلا فشل البناء. راجع tools/check_controls.py.",
+    "",
+    "رسائل الخطأ بالعربية عمداً — الكاتب غير تقني ويقرؤها هو."
+  ],
+  "version": 1,
+  "languages": {
+    "default": "ar",
+    "$comment_default": "العربية بلا بادئة، الإنجليزية تحت /en/ — مطابقةً لـ datarecovery-sa.com الذي يخدم العربية من جذر النطاق. المدونة تعكس ترتيب موقعها.",
+    "available": [
+      "ar",
+      "en"
+    ],
+    "paths": {
+      "ar": "/blog/",
+      "en": "/blog/en/"
+    },
+    "x_default": "ar"
+  },
+  "bundle": {
+    "$comment": "حزمة الصفحة — القسم 10. الصور داخل مجلد المقال حصراً، لا مجلد صور عام",
+    "path": "content/blog/<slug>/",
+    "index_file": "index.<lang>.md",
+    "image_formats": [
+      "webp",
+      "avif",
+      "jpg",
+      "png"
+    ],
+    "max_image_bytes": 512000,
+    "max_image_error_ar": "الصورة «{name}» حجمها {actual} والحد الأقصى 500 كيلوبايت. اضغطها من اللوحة عند الرفع ثم أعد المحاولة."
+  },
+  "fields": {
+    "title": {
+      "type": "string",
+      "required": true,
+      "min_length": 10,
+      "max_length": 70,
+      "error_ar": "العنوان يجب أن يكون بين 10 و70 محرفاً. عنوانك الآن {actual} محرفاً."
+    },
+    "description": {
+      "type": "string",
+      "required": true,
+      "min_length": 50,
+      "max_length": 160,
+      "error_ar": "الوصف التعريفي يجب أن يكون بين 50 و160 محرفاً — هذا ما يظهر في نتائج البحث. وصفك الآن {actual} محرفاً."
+    },
+    "slug": {
+      "type": "string",
+      "required": true,
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "max_length": 60,
+      "locked_after_first_publish": true,
+      "$comment": "القسم 8.1: الرابط بعد النشر لا يتغيّر. تغييره إجراء استثنائي موثّق مع 301",
+      "error_ar": "الرابط يجب أن يكون حروفاً إنجليزية صغيرة وأرقاماً وشرطات فقط، مثل: why-ad-campaigns-fail"
+    },
+    "date": {
+      "type": "date",
+      "required": true,
+      "auto": true
+    },
+    "lastmod": {
+      "type": "date",
+      "required": false,
+      "auto": true
+    },
+    "draft": {
+      "type": "boolean",
+      "required": true,
+      "default": true,
+      "$comment": "افتراضي true — لا يُنشر شيء بالخطأ"
+    },
+    "archived": {
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "$comment": "القسم 12.5: بديل الحذف. يُستبعد من الموقع ويبقى في المحتوى"
+    },
+    "categories": {
+      "type": "list",
+      "required": true,
+      "min_items": 1,
+      "error_ar": "اختر تصنيفاً واحداً على الأقل للمقال."
+    },
+    "featured_image": {
+      "type": "path",
+      "required": true,
+      "must_be_in_bundle": true,
+      "error_ar": "المقال يحتاج صورة مشاركة — هي ما يظهر عند مشاركة الرابط في واتساب وتويتر."
+    },
+    "featured_image_alt": {
+      "type": "string",
+      "required": true,
+      "min_length": 1,
+      "$comment": "القسم 8.2: النص البديل إلزامي، والبناء يفشل بدونه",
+      "error_ar": "اكتب وصفاً مختصراً للصورة (النص البديل) — يقرؤه فاقدو البصر ومحركات البحث."
+    }
+  },
+  "categories": {
+    "$comment": "تصنيفات المدونة، مضبوطة على خدمات datarecovery-sa.com كي يجد كل مقال صفحة خدمة يحيل إليها — الرابط الداخلي هو الغرض التجاري من المدونة.",
+    "items": [
+      {
+        "slug": "hard-drives",
+        "en": "Hard Drives",
+        "ar": "الأقراص الصلبة",
+        "description_en": "How mechanical and logical hard drive faults actually behave, and what to do before the damage spreads.",
+        "description_ar": "كيف تتصرّف أعطال الأقراص الصلبة الميكانيكية والمنطقية فعليًا، وما الذي يجب فعله قبل أن يتّسع الضرر.",
+        "intro_en": "A hard drive rarely fails all at once. It clicks, slows, drops sectors, or disappears from the system for a moment and comes back. These articles explain what each symptom usually means, why repeated power-ons make a physical fault worse, and how to tell a software problem from one that needs a lab. Read them before you try anything on a disk that still matters.",
+        "intro_ar": "نادرًا ما يتعطّل القرص الصلب دفعة واحدة. يطقطق، أو يبطؤ، أو يفقد قطاعات، أو يختفي من النظام لحظة ثم يعود. تشرح هذه المقالات ما يعنيه كل عرض من هذه الأعراض عادةً، ولماذا يزيد تكرار التشغيل من الضرر الفيزيائي، وكيف تفرّق بين مشكلة برمجية وأخرى تحتاج مختبرًا. اقرأها قبل أن تجرّب شيئًا على قرص ما زالت بياناته مهمة."
+      },
+      {
+        "slug": "ssd-nvme",
+        "en": "SSD & NVMe",
+        "ar": "أقراص SSD وNVMe",
+        "description_en": "Why solid-state storage fails differently, and why speed of stopping matters more than anything else.",
+        "description_ar": "لماذا تتعطّل أقراص الحالة الصلبة بطريقة مختلفة، ولماذا تكون سرعة التوقف عن الاستخدام أهم من أي شيء آخر.",
+        "intro_en": "An SSD is not a quiet hard drive. It has a controller, a translation layer, and a TRIM command that can erase deleted data on its own schedule. That changes what recovery means and how much time you have. These articles cover controller and firmware faults, encrypted drives, M.2 and NVMe specifics, and the reason recovery software is riskier here than on a spinning disk.",
+        "intro_ar": "قرص SSD ليس قرصًا صلبًا هادئًا. فيه وحدة تحكم وطبقة ترجمة وأمر TRIM قد يمسح البيانات المحذوفة بجدوله الخاص. هذا يغيّر معنى الاستعادة ومقدار الوقت المتاح لك. تتناول هذه المقالات أعطال وحدة التحكم والـFirmware، والأقراص المشفّرة، وخصوصية M.2 وNVMe، وسبب كون برامج الاسترجاع أخطر هنا منها على القرص الدوّار."
+      },
+      {
+        "slug": "raid-servers",
+        "en": "RAID & Servers",
+        "ar": "RAID والسيرفرات",
+        "description_en": "Arrays, rebuilds, and the decisions in the first hour that decide whether the data survives.",
+        "description_ar": "المصفوفات وإعادة البناء، والقرارات في الساعة الأولى التي تحدّد إن كانت البيانات ستنجو.",
+        "intro_en": "RAID protects uptime, not data. When an array degrades, the most expensive mistakes happen in the first hour: starting a rebuild, reordering disks, or accepting an initialise prompt. These articles explain the common levels in plain terms, what actually happens when a disk drops out, why a rebuild can finish the job the failure started, and what to do instead.",
+        "intro_ar": "‏RAID يحمي استمرار العمل لا البيانات. حين تتدهور المصفوفة تقع أغلى الأخطاء في الساعة الأولى: بدء إعادة البناء، أو إعادة ترتيب الأقراص، أو قبول رسالة التهيئة. تشرح هذه المقالات المستويات الشائعة بلغة واضحة، وما يحدث فعلًا عند خروج قرص، ولماذا قد تُكمل إعادة البناء ما بدأه العطل، وما البديل الصحيح."
+      },
+      {
+        "slug": "ransomware",
+        "en": "Ransomware & Encryption",
+        "ar": "فيروس الفدية والتشفير",
+        "description_en": "Containing an attack, assessing the options honestly, and hardening what is left.",
+        "description_ar": "احتواء الهجوم، وتقييم الخيارات بصدق، وتحصين ما تبقّى.",
+        "intro_en": "A ransomware case is decided by what happens before anyone calls a specialist: whether the machine was isolated, whether the ransom note was kept, whether backups were reachable from the same account that was compromised. These articles cover the first hour, how encrypted data is assessed, what makes some families recoverable and others not, and the controls that lower the odds of a second incident.",
+        "intro_ar": "تُحسم حالة الفدية بما يحدث قبل الاتصال بمتخصص: هل عُزل الجهاز، وهل حُفظت رسالة الفدية، وهل كانت النسخ الاحتياطية في متناول الحساب نفسه الذي اختُرق. تتناول هذه المقالات الساعة الأولى، وكيف تُقيَّم البيانات المشفّرة، ولماذا تكون بعض العائلات قابلة للاستعادة دون غيرها، والضوابط التي تقلّل احتمال وقوع حادثة ثانية."
+      },
+      {
+        "slug": "phones-and-cards",
+        "en": "Phones & Memory Cards",
+        "ar": "الهواتف وبطاقات الذاكرة",
+        "description_en": "Water damage, broken screens, dead cards, and the hard limits set by encryption.",
+        "description_ar": "أضرار الماء، والشاشات المكسورة، والبطاقات الميتة، والحدود الصارمة التي يفرضها التشفير.",
+        "intro_en": "Phones and memory cards hold the files people miss most, and they are the media most often made worse by a first attempt. These articles cover what to do after water or a drop, why charging a wet phone spreads the damage, what a card asking to be formatted usually means, and where modern encryption ends what is technically possible — stated plainly rather than promised around.",
+        "intro_ar": "تحمل الهواتف وبطاقات الذاكرة أكثر الملفات التي يصعب فقدها، وهي أكثر الوسائط تضرّرًا من المحاولة الأولى. تتناول هذه المقالات ما يجب فعله بعد الماء أو السقوط، ولماذا ينشر شحن جوال مبلول الضرر، وما تعنيه عادةً رسالة «يجب تهيئة البطاقة»، وأين ينتهي الممكن تقنيًا بسبب التشفير الحديث — مذكورًا بوضوح لا موعودًا حوله."
+      },
+      {
+        "slug": "data-protection",
+        "en": "Backup & Data Protection",
+        "ar": "النسخ الاحتياطي وحماية البيانات",
+        "description_en": "The habits that make a recovery unnecessary, written for people who have already had one scare.",
+        "description_ar": "العادات التي تجعل الاستعادة غير ضرورية، مكتوبة لمن مرّ بتجربة مخيفة مرة.",
+        "intro_en": "Most people set up a real backup only after they have nearly lost something. These articles cover the 3-2-1 rule and why the offline copy is the one that matters, how to test that a backup actually restores, which storage media age fastest, and the everyday habits that keep a bad day from becoming a permanent loss.",
+        "intro_ar": "أغلب الناس لا يجهّزون نسخة احتياطية حقيقية إلا بعد أن يوشكوا على فقد شيء ما. تتناول هذه المقالات قاعدة 3-2-1 ولماذا النسخة غير المتصلة هي المهمة، وكيف تختبر أن النسخة تُستعاد فعلًا، وأي وسائط التخزين تشيخ أسرع، والعادات اليومية التي تمنع يومًا سيئًا من أن يصير خسارة دائمة."
+      }
+    ]
+  },
+  "filenames": {
+    "$comment": "القسم 12.2: قيود صارمة على أسماء الملفات",
+    "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+    "error_ar": "اسم الملف «{name}» غير مقبول. استخدم حروفاً إنجليزية صغيرة وأرقاماً وشرطات فقط، بلا مسافات."
+  }
+}

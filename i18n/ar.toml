@@ -1,0 +1,127 @@
+[blog]
+other = "المدونة"
+
+[home]
+other = "الرئيسية"
+
+[about]
+other = "من نحن"
+
+[services]
+other = "خدماتنا"
+
+[work]
+other = "أعمالنا"
+
+[contact]
+other = "تواصل معنا"
+
+[otherLang]
+other = "English"
+
+[readingTime]
+other = "دقيقة قراءة"
+
+[published]
+other = "نُشر"
+
+[updated]
+other = "حُدِّث"
+
+[allPosts]
+other = "كل المقالات"
+
+[category]
+other = "التصنيف"
+
+[categories]
+other = "التصنيفات"
+
+[browseCategories]
+other = "تصفّح حسب التصنيف"
+
+[categoriesIntro]
+other = "استكشف المقالات العملية ضمن مجالات استعادة البيانات التي نغطيها."
+
+[articlesCount]
+other = "عدد المقالات"
+
+[noPostsInCategory]
+other = "لا توجد مقالات في هذا التصنيف بعد."
+
+[allCategories]
+other = "كل التصنيفات"
+
+[noPosts]
+other = "لا مقالات بعد."
+
+[backToBlog]
+other = "العودة إلى المدونة"
+
+[backArrow]
+other = "→"
+
+[notFound]
+other = "الصفحة غير موجودة"
+
+[notFoundMsg]
+other = "هذه الصفحة غير موجودة، أو تغيّر عنوانها."
+
+[notFoundDescription]
+other = "تعذّر العثور على الصفحة المطلوبة. تصفّح أحدث مقالات من الصفر إلى الواحد أو عد إلى الموقع الرئيسي."
+
+[feedTitle]
+other = "خلاصة مدونة من الصفر إلى الواحد"
+
+[feedDescription]
+other = "مقالات عملية في استعادة البيانات من فريق من الصفر إلى الواحد في الرياض."
+
+[rights]
+other = "جميع الحقوق محفوظة."
+
+[socials]
+other = "تواصل"
+
+[testimonials]
+other = "آراء العملاء"
+
+[mainNavigation]
+other = "التنقل الرئيسي"
+
+[menu]
+other = "القائمة"
+
+[openMenu]
+other = "قائمة التنقل"
+
+[blogEyebrow]
+other = "تشخيص. استعادة. حماية."
+
+[latestArticles]
+other = "أحدث المقالات"
+
+[emptyEyebrow]
+other = "الفصل القادم"
+
+[emptyTitle]
+other = "محتوى جديد قيد التحضير."
+
+[emptyBody]
+other = "نعمل على إعداد أولى مقالاتنا. إلى ذلك الحين، اكتشف كيف تساعدك من الصفر إلى الواحد على استعادة بياناتك."
+
+[exploreServices]
+other = "استكشف خدماتنا"
+
+[startConversation]
+other = "اطلب تقييم حالتك"
+
+[visitUs]
+other = "تفضل بزيارتنا"
+
+[talkToUs]
+other = "تواصل معنا"
+[quickLinks]
+other = "روابط سريعة"
+
+[brandName]
+other = "من الصفر إلى الواحد"

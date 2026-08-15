@@ -1,0 +1,8 @@
+{
+  "endpoint": "https://api.indexnow.org/indexnow",
+  "host": "datarecovery-sa.com",
+  "key_file": "static/59c51e5a49654ad8a14a21daafc000b0.txt",
+  "key_location": "https://datarecovery-sa.com/blog/59c51e5a49654ad8a14a21daafc000b0.txt",
+  "deployment_marker": "https://datarecovery-sa.com/blog/indexnow-deploy.txt",
+  "url_prefix": "https://datarecovery-sa.com/blog/"
+}

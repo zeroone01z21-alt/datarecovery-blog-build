@@ -1,0 +1,103 @@
+# إعداد Hugo — المدونة
+#
+# إعداد الإنتاج للمدونة. إصدار Hugo نفسه مثبت مع بصمته في سير البناء.
+
+baseURL = 'https://datarecovery-sa.com/blog/'
+title = 'مدونة من الصفر إلى الواحد'
+enableRobotsTXT = false          # robots.txt يُدار من جذر النطاق (القسم 8.3)
+enableGitInfo = false
+timeZone = 'Asia/Riyadh'
+summaryLength = 40
+
+# قرار بند صفر: العربية بلا بادئة، الإنجليزية ببادئة — مطابقةً للموقع.
+# ‏datarecovery-sa.com عربي أولًا: العربية على جذر النطاق والإنجليزية
+# تحت /en/، فالمدونة تعكس ترتيب موقعها لا ترتيب مدونة أخرى.
+defaultContentLanguage = 'ar'
+defaultContentLanguageInSubdir = false
+# لا ننشئ /ar/index.html كتحويل HTML إلى الجذر. العربية أصلًا في
+# /blog/، والتحويل على جهة العميل يضيف صفحة ناقصة إلى فحوص SEO.
+disableDefaultSiteRedirect = true
+
+# تصنيف واحد مضبوط من العقد المركزي. قيم front matter هي slugs الثابتة
+# (مثل seo)، بينما يولّد محوّل المحتوى أدناه أسماء EN/AR من schema.json.
+[taxonomies]
+  category = 'categories'
+
+# سير البناء يستبدل content/ بمحتوى الكاتب. نبقي صفحات تعريف التصنيفات
+# في مصدر منفصل ونركّب المصدرين معًا كي لا تضيع عند كل بناء.
+[module]
+  [[module.mounts]]
+    source = 'content'
+    target = 'content'
+  [[module.mounts]]
+    source = 'taxonomy-content/categories'
+    target = 'content/categories'
+
+# الأوزان تحدّد ترتيب اللغات في كل قائمة يولّدها Hugo. العربية أولًا
+# لأنها لغة الموقع الافتراضية، وهي صاحبة المسار بلا بادئة.
+[languages]
+  [languages.ar]
+    locale = 'ar'
+    label = 'العربية'
+    direction = 'rtl'
+    weight = 1
+    title = 'مدونة من الصفر إلى الواحد'
+    [languages.ar.params]
+      # اسم العلامة يختلف بين اللغتين على الموقع نفسه، فنعرّفه لكل لغة
+      # بدل قيمة واحدة: القوالب تقرأ .Site.Params.organization كما هي،
+      # وHugo يدمج معاملات اللغة فوق [params] العامة.
+      organization = 'من الصفر إلى الواحد'
+  [languages.en]
+    locale = 'en'
+    label = 'English'
+    direction = 'ltr'
+    weight = 2
+    title = 'Zero 2 One Data Recovery Blog'
+    [languages.en.params]
+      organization = 'Zero 2 One Data Recovery'
+
+[permalinks]
+  # القسم 8.1: بلا تاريخ وبلا تصنيف في المسار.
+  # التاريخ يجعل المقال يبدو قديمًا، والتصنيف يكسر الرابط عند إعادة التصنيف.
+  '/' = '/:slug/'
+
+[markup]
+  [markup.goldmark]
+    [markup.goldmark.renderer]
+      # القسم 12.2 — إلزامي. حساب كاتب مخترق يستطيع دسّ HTML خام
+      # يصبح جزءًا دائمًا من كل صفحة.
+      unsafe = false
+  [markup.highlight]
+    noClasses = false
+
+[outputs]
+  home = ['HTML', 'RSS']
+  section = ['HTML', 'RSS']
+  page = ['HTML']
+
+[params]
+  # القيمة الافتراضية = العربية (اللغة الافتراضية). النسخة الإنجليزية
+  # في [languages.en.params] أعلاه.
+  organization = 'من الصفر إلى الواحد'
+  # نفس @id الخاص بـ LocalBusiness على الموقع. استخدامه يربط عقد Article
+  # في المدونة بالكيان نفسه بدل إنشاء كيان ثانٍ يشتّت إشارات المنظمة.
+  organizationId = 'https://datarecovery-sa.com/#business'
+    # نفس خاصية GA4 وحاوية GTM المستخدمتين على الموقع: المدونة جزء من
+    # النطاق نفسه، وفصلها إلى خاصية ثانية يقطع رحلة الزائر بين المقال
+    # وصفحة الخدمة في التقارير.
+    #
+    # TODO(joint): الموقع يحمّل GTM وحده، وGA4 مُعرَّف **كوسم داخل الحاوية**
+    # (راجع build/site.js في مستودع الموقع) تفاديًا للعدّ المزدوج. بينما
+    # layouts/partials/analytics.html هنا يشترط ga4Id لتشغيل أي تحليلات،
+    # ثم ينادي gtag('config') **و** يحمّل gtm.js معًا — فيُحتسب page_view
+    # مرتين على المدونة. القرار المطلوب: إمّا تعديل الجزئية لتشترط gtmId
+    # وتترك ضبط GA4 للحاوية، أو حذف وسم GA4 من الحاوية للمدونة. تركنا
+    # المعرّفين الحقيقيين هنا كي لا تُنشر المدونة بلا قياس أصلًا.
+    ga4Id = 'G-M2GX0NVW5E'
+    gtmId = 'GTM-NVKDG74Z'
+  logo = 'https://datarecovery-sa.com/assets/img/logo-mark.png'
+  # الموقع يشحن صورة مشاركة واحدة للغتين، فالمفتاحان يشيران إليها.
+  # نبقي المفتاحين لأن layouts/partials/head.html يختار بينهما حسب اللغة،
+  # فحذف أحدهما يترك og:image فارغًا على نصف الصفحات.
+  defaultImage = 'https://datarecovery-sa.com/assets/img/og.png'
+  defaultImageAr = 'https://datarecovery-sa.com/assets/img/og.png'

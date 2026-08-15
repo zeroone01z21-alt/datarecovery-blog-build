@@ -1,0 +1,69 @@
+{{- /*
+  هيكل الصفحة — يستخدم تنقّل الموقع وفوتره **حرفيًّا**.
+
+  قرار المالك (2026-08-06، مكرَّرًا ثلاثًا): «الناف بار والسايد والبرغر
+  والفوتر نفسها في كل صفحة بالموقع بدون أي تعديل أبدًا».
+
+  فالكتل في layouts/partials/site/ مستخرجة نصًّا من صفحة داخلية حقيقية
+  (`work/index.html` و`ar/work/index.html`) ولا تُحرَّر يدويًّا. تُحدَّث
+  بإعادة تشغيل tools/sync_site_chrome.py حين يتغيّر الموقع.
+
+  الكلفة، موثَّقة صراحةً: هذا يحمّل bundle.min.css و vendor.min.js
+  و index-new.min.js — أي محرّك GSAP و locomotive و barba كاملًا. المسار
+  الحرج يتجاوز 220 KB. الميزانية أُعيد ضبطها في controls/budgets.json
+  بقرار المالك، لا بتجاوزٍ صامت من البناء.
+
+  لماذا يبقى هذا صحيحًا رغم الكلفة: هوية واحدة عبر النطاق كله تساوي أكثر
+  من كيلوبايتات في نظر زائر ينتقل بين الموقع والمدونة في الجلسة نفسها.
+*/ -}}
+{{- $ar := eq .Lang "ar" -}}
+{{- $chrome := cond $ar "ar" "en" -}}
+<!DOCTYPE html>
+<html lang="{{ .Lang }}" dir="{{ cond $ar "rtl" "ltr" }}">
+<head>
+  {{ partial "head.html" . }}
+</head>
+<body{{ if $ar }} class="lang-ar"{{ end }} data-barba="wrapper">
+  {{- /* بديل GTM لمن يعطّل جافاسكربت — كما في صفحات الموقع تمامًا. */ -}}
+  {{- with .Site.Params.gtmId }}
+  <noscript><iframe src="https://www.googletagmanager.com/ns.html?id={{ . }}" height="0" width="0"
+      style="display:none;visibility:hidden"></iframe></noscript>
+  {{- end }}
+  {{- /*
+    ترتيب صفحات الموقع حرفيًّا: كل شيء داخل <main>، والمحتوى محصور بين
+    كتلتَي الهيكل. الأولى تفتح `main-wrap data-scroll-container` بعد
+    البرغر والقائمة الجانبية، والثانية تحمل الفوتر وتغلق الغلاف.
+
+    ⚠️ لا تُخرج الفوتر من <main> ولا تفصله عن كتلته: قواعد الموقع مكتوبة
+    على الأب `.footer-wrap.theme-dark .footer`. فوتر بلا هذا الأب يخرج
+    بلا خلفية ولا تنسيق — وهو بالضبط ما جعل المدونة تبدو موقعًا آخر.
+  */ -}}
+  <main class="main inner-page" id="blog" data-barba="container" data-barba-namespace="blog">
+    {{- /* البرغر والقائمة الجانبية والسوشيال — كتلة الموقع كما هي */ -}}
+    {{ partial (printf "site/nav-%s.html" $chrome) . }}
+
+    {{- /*
+      `data-scroll-section` ليس زينة: locomotive يبحث عن هذه العلامة داخل
+      الغلاف، ويحرّك ما يحملها وحده. الفوتر يحملها (قسمان)، فلو لم يحملها
+      المحتوى بقي ثابتًا بينما ينزلق الفوتر فوقه. هنا لا في كل تخطيط، فيسري
+      على القوائم والمقالات والتصنيفات و404 وأي تخطيط يُضاف لاحقًا.
+    */ -}}
+    <div class="blog-body" data-scroll-section>
+      {{- /*
+        شريط التنقّل العلوي — الشعار وروابط الموقع. في صفحات الموقع يعيش
+        داخل `header.section.default-header` أي **داخل** main-wrap لا قبله،
+        ولهذا لم تلتقطه كتلة التنقّل. وهو `position:absolute; top:0` فيحتاج
+        أبًا موضَّعًا: `.blog-body` هو ذلك الأب (انظر blog.css).
+      */ -}}
+      {{ partial (printf "site/navbar-%s.html" $chrome) . }}
+      {{ block "main" . }}{{ end }}
+    </div>
+
+    {{- /* فوتر الموقع بغلافه الكامل — يغلق main-wrap */ -}}
+    {{ partial (printf "site/footer-%s.html" $chrome) . }}
+  </main>
+
+  {{- /* نفس سكربتات الموقع وبنفس بصمات ?v= — بلا تعديل */ -}}
+  {{ partial "site-scripts.html" . }}
+</body>
+</html>

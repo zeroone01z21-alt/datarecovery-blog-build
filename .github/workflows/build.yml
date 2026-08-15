@@ -1,0 +1,358 @@
+# بناء المدونة ونشرها — القسم 6
+#
+# يُشغَّل من مستودع المحتوى عبر workflow_dispatch.
+#
+# لماذا workflow_dispatch لا repository_dispatch (تصحيح للقسم 6.1):
+#   الثاني يتطلب contents:write على هذا المستودع — أي تعديل قوالبه
+#   وميزانياته، وهو ما وُضع القسم 6.2 لمنعه. أُثبت 2026-08-02: 403.
+#
+# لماذا النشر عبر مستودع الموقع لا FTP (تصحيح للقسم 6.5):
+#   مزامنة Git في Hostinger تنشر محتوى مستودع الموقع إلى public_html
+#   وتحذف ما ليس فيه. في 2026-08-04 محا نشرٌ للموقع مجلد /blog/ كاملًا
+#   وكان يُرفع بـFTP. فلا مفرّ من التسليم داخل المستودع.
+#   العزل المفقود يعوّضه tools/check_deploy_scope.py قبل كل دفعة.
+name: build
+run-name: نشر المدونة · ${{ inputs.content_sha || inputs.reason }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: سبب التشغيل
+        required: false
+        default: حفظ في مستودع المحتوى
+      content_sha:
+        description: SHA محتوى دقيق يرسله مستودع المحتوى؛ اتركه فارغًا للتشغيل اليدوي
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  # البناء والتراجع يكتبان main في مستودع الموقع. المجموعة الواحدة تمنع سباق
+  # push، والطابور الكامل يمنع استبدال تشغيل منتظر عند وصول تشغيل ثالث.
+  group: blog-site-write
+  queue: max
+  cancel-in-progress: false
+
+env:
+  HUGO_VERSION: "0.164.0"
+  HUGO_SHA256: "fea17b8c076f950bb2e9f9486667bdaa29422883888d509d63931c73e8a9b3a4"
+
+jobs:
+  build:
+    name: بناء ونشر
+    runs-on: ubuntu-latest
+    steps:
+      - name: قوالب المدونة
+        id: checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: بدء إشارة المراقبة الاختيارية
+        id: health_start
+        continue-on-error: true
+        env:
+          HEALTHCHECKS_URL: ${{ secrets.HEALTHCHECKS_URL }}
+        run: python3 tools/healthcheck.py start
+
+      - name: تثبيت مرجع المحتوى المطلوب
+        env:
+          CONTENT_SHA: ${{ inputs.content_sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "$CONTENT_SHA" ] && [[ ! "$CONTENT_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::content_sha يجب أن يكون SHA كاملًا من 40 محرفًا صغيرًا."
+            exit 1
+          fi
+
+      - name: المحتوى
+        id: content_checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: __TODO_REPO_CONTENT__
+          ref: ${{ inputs.content_sha || 'main' }}
+          path: .content-src
+
+      - name: التحقق من بصمات الضوابط
+        id: controls
+        run: python3 tools/check_controls.py
+
+      - name: فحص لوحة الكاتب المولّدة
+        id: cms
+        run: python3 tools/check_cms.py
+
+      - name: تجهيز المحتوى واستبعاد المؤرشف
+        id: prepare_content
+        run: |
+          set -euo pipefail
+          report="$RUNNER_TEMP/prepare-content.log"
+          set +e
+          python3 tools/prepare_content.py .content-src/content >"$report" 2>&1
+          exit_code=$?
+          set -e
+          cat "$report"
+          exit "$exit_code"
+
+      - name: تدقيق المحتوى الجاهز للنشر
+        id: content_check
+        run: |
+          set -euo pipefail
+          report="$RUNNER_TEMP/content-check.log"
+          set +e
+          python3 tools/check_content.py content >"$report" 2>&1
+          exit_code=$?
+          set -e
+          cat "$report"
+          exit "$exit_code"
+
+      # الموقع يُستنسخ **قبل** البناء لا بعده: هو مصدر الهيكل، لا وجهة النشر
+      # وحدها. الخطوة التالية تستخرج منه البرغر والقائمة الجانبية والفوتر،
+      # فتُبنى المدونة على هيكل الموقع كما هو **الآن**، لا كما كان يوم آخر
+      # مزامنة يدوية.
+      - name: مستودع الموقع
+        id: site_checkout
+        env:
+          TOKEN: ${{ secrets.SITE_REPO_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${TOKEN:-}" ]; then
+            echo "::error::السر SITE_REPO_TOKEN غير مضبوط."
+            exit 1
+          fi
+          git clone --depth 1 \
+            "https://x-access-token:${TOKEN}@github.com/01team9639-maker/datarecovery-sa.git" site \
+            2>&1 | sed -E "s#//[^@]*@#//***@#g"
+
+      # هيكل الموقع (الهيدر والدرج والبرغر والفوتر) لا يُعاد كتابته هنا: أي نسخة
+      # بأسلوبنا تُشبه الموقع ولا تطابقه، وتنحرف عنه مع كل تعديل يجري هناك.
+      #
+      # المدونة المرجعية كانت تستخرجه من HTML مُصيَّر لأن موقعها مكتوب يدويًّا.
+      # هذا الموقع مختلف: صفحاته **مولّدة** من build/generate.js، فالهيكل يُقرأ
+      # من المولّد نفسه عبر build/emit-chrome.js. لا تحليل HTML، ولا عدّ وسوم
+      # <div> لمعرفة أين تنتهي كل كتلة، ولا انحراف صامت عند تغيّر الترميز.
+      #
+      # يتغيّر رقم الهاتف أو رابط سوشيال في الموقع، فتتبعه المدونة في النشر
+      # التالي بلا لمسة يد. وإن تغيّرت دوال المولّد فالإصدار يفشل بصوت عالٍ.
+      - name: إصدار هيكل الموقع إلى المدونة
+        id: chrome_sync
+        run: |
+          set -euo pipefail
+          node site/build/emit-chrome.js .
+          git --no-pager diff --stat -- layouts/partials/site layouts/partials/site-css.html layouts/partials/site-scripts.html
+
+      - name: تثبيت Hugo ببصمة الإصدار
+        id: hugo_install
+        run: |
+          set -euo pipefail
+          f="hugo_extended_${HUGO_VERSION}_linux-amd64.tar.gz"
+          curl -sSLo "$f" "https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/$f"
+          echo "${HUGO_SHA256}  $f" | sha256sum -c -
+          tar -xzf "$f" hugo && sudo mv hugo /usr/local/bin/
+          hugo version
+
+      - name: البناء
+        id: hugo_build
+        run: |
+          set -euo pipefail
+          hugo --gc --minify --destination public
+          python3 tools/normalize_sitemaps.py public
+          test -s public/index.html
+
+      - name: فحص خرائط البحث وRSS وIndexNow
+        id: indexing
+        run: python3 tools/check_indexing.py public
+
+      - name: فحص SEO وقواعد الخادم
+        id: seo
+        run: |
+          set -euo pipefail
+          report="$RUNNER_TEMP/seo-check.log"
+          set +e
+          python3 tools/check_seo.py public >"$report" 2>&1
+          exit_code=$?
+          set -e
+          cat "$report"
+          exit "$exit_code"
+
+      # يُفحص مقابل نسخة الموقع المستنسخة في خطوة الهيكل أعلاه. `check_seo`
+      # يغطي الروابط داخل /blog/ فقط، وهذه هي الروابط التي تخرج منها إلى صفحات
+      # الخدمات — وهي بالضبط الروابط التي تحوّل قارئًا إلى عميل.
+      - name: الروابط الداخلية إلى الموقع
+        id: internal_links
+        run: python3 tools/check_internal_links.py public site
+
+      - name: ميزانيات الأداء
+        id: budgets
+        run: python3 tools/check_budgets.py public
+
+      - name: استبدال blog/ وحده
+        id: replace_blog
+        run: |
+          set -euo pipefail
+          mkdir -p site/blog
+          rsync -a --delete public/ site/blog/
+
+      - name: تجهيز إخطار IndexNow
+        id: indexnow_collect
+        run: |
+          python3 tools/indexnow.py collect site \
+            --output "$RUNNER_TEMP/indexnow.json" \
+            --deployment-id "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+      - name: 🔒 حارس النطاق
+        id: deploy_scope
+        run: python3 tools/check_deploy_scope.py site
+
+      - name: الدفع
+        id: push_site
+        env:
+          TOKEN: ${{ secrets.SITE_REPO_TOKEN }}
+          REASON: ${{ inputs.reason }}
+        run: |
+          set -euo pipefail
+          cd site
+          if git diff --quiet && [ -z "$(git status --porcelain)" ]; then
+            echo "لا تغييرات — الموقع محدَّث أصلًا."
+            exit 0
+          fi
+          git config user.name "Zero 2 One Data Recovery"
+          git config user.email "01team9639@gmail.com"
+          git add blog
+          git commit -q -m "نشر المدونة — ${REASON}"
+          git push -q origin main 2>&1 | sed -E "s#//[^@]*@#//***@#g"
+          echo "✅ نُشر $(git rev-parse --short HEAD)"
+
+      # مزامنة Hostinger غير متزامنة ولا سقف معلوم لها. حدث فعليًّا أن
+      # تجاوزت 240 ثانية، فظهر التشغيل **أحمر بينما النشر نجح** — والدفع
+      # إلى مستودع الموقع تمّ قبل هذه الخطوة أصلًا.
+      #
+      # إشارة تكذب أسوأ من غياب الإشارة: من يرى أحمر على نشر ناجح مرّتين
+      # يتوقّف عن قراءة اللون. لذلك:
+      #   • النافذة 600 ثانية بدل 240 — تغطّي البطء المعتاد
+      #   • continue-on-error: تأخّر المزامنة تحذير لا فشل
+      # وIndexNow يبقى مشروطًا بنجاحها فلا يُخطَر محرك البحث بنسخة لم
+      # تظهر بعد. الخرائط تلتقط الروابط لاحقًا على أي حال.
+      - name: تحقق خارجي من وصول النشر
+        id: live_verify
+        continue-on-error: true
+        timeout-minutes: 12
+        run: |
+          python3 tools/wait_for_live.py \
+            site/blog/indexnow-deploy.txt \
+            https://datarecovery-sa.com/blog/indexnow-deploy.txt \
+            --seconds 600
+
+      # النشر عبر Hostinger غير متزامن. الأداة تنتظر علامة هذا البناء تحديداً
+      # قبل الإخطار، حتى لا يزور محرك البحث النسخة السابقة. تعطل IndexNow لا
+      # يحوّل نشرًا ناجحًا إلى فشل؛ يعاد اكتشاف الروابط من الخرائط لاحقًا.
+      - name: إخطار IndexNow بعد ظهور النشر
+        id: indexnow_submit
+        if: steps.live_verify.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 8
+        run: python3 tools/indexnow.py submit "$RUNNER_TEMP/indexnow.json"
+
+      - name: إشارة نجاح المراقبة
+        if: success()
+        continue-on-error: true
+        env:
+          HEALTHCHECKS_URL: ${{ secrets.HEALTHCHECKS_URL }}
+        run: python3 tools/healthcheck.py success
+
+      - name: إشارة فشل المراقبة
+        if: failure()
+        continue-on-error: true
+        env:
+          HEALTHCHECKS_URL: ${{ secrets.HEALTHCHECKS_URL }}
+        run: python3 tools/healthcheck.py fail
+
+      - name: ملخص النتيجة للكاتب والمالك
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          PREPARE_OUTCOME: ${{ steps.prepare_content.outcome }}
+          CONTENT_OUTCOME: ${{ steps.content_check.outcome }}
+          CONTROLS_OUTCOME: ${{ steps.controls.outcome }}
+          CMS_OUTCOME: ${{ steps.cms.outcome }}
+          BUILD_OUTCOME: ${{ steps.hugo_build.outcome }}
+          SEO_OUTCOME: ${{ steps.seo.outcome }}
+          PUSH_OUTCOME: ${{ steps.push_site.outcome }}
+          LIVE_OUTCOME: ${{ steps.live_verify.outcome }}
+          INDEXNOW_OUTCOME: ${{ steps.indexnow_submit.outcome }}
+        run: |
+          set -u
+          append_log() {
+            report_file="$1"
+            report_title="$2"
+            if [ -s "$report_file" ]; then
+              printf '\n### %s\n\n' "$report_title" >> "$GITHUB_STEP_SUMMARY"
+              while IFS= read -r report_line; do
+                printf '    %s\n' "$report_line" >> "$GITHUB_STEP_SUMMARY"
+              done < "$report_file"
+            fi
+          }
+
+          if [ "$PREPARE_OUTCOME" = "failure" ] || \
+             [ "$CONTENT_OUTCOME" = "failure" ] || \
+             [ "$SEO_OUTCOME" = "failure" ]; then
+            cat >> "$GITHUB_STEP_SUMMARY" <<'SUMMARY'
+          ## تعذّر نشر المحتوى | Content needs attention
+
+          **للكاتب:** الموقع الحي لم يتغيّر. اقرأ الرسالة العربية أدناه؛ ستذكر
+          الملف أو الصفحة والمشكلة. إن كانت تخص عنوانًا أو صورة أو ترتيب عناوين
+          مقالك، أصلحها في اللوحة واحفظ مرة واحدة. إن كانت تخص عدة صفحات أو
+          قالبًا، لا تعد المحاولة وأرسل رابط هذا التشغيل إلى المالك.
+
+          **Owner:** A content/preparation/page-SEO gate stopped the run before
+          deployment. The live site was not modified. The indented validator
+          output below is untrusted content rendered as code; distinguish a
+          writer-fixable page issue from a template-wide regression.
+          SUMMARY
+            append_log "$RUNNER_TEMP/prepare-content.log" "تجهيز المحتوى"
+            append_log "$RUNNER_TEMP/content-check.log" "تدقيق المحتوى"
+            append_log "$RUNNER_TEMP/seo-check.log" "فحص SEO للصفحات الناتجة"
+          elif [ "$JOB_STATUS" = "success" ]; then
+            cat >> "$GITHUB_STEP_SUMMARY" <<'SUMMARY'
+          ## تم النشر والتحقق | Published and verified
+
+          **للكاتب:** اكتمل النشر، وتحقّق النظام من ظهور النسخة على الموقع الحي.
+          افتح [المدونة](https://datarecovery-sa.com/blog/) لمراجعتها.
+
+          **Owner:** Build gates, site-scope guard, push, and external live marker
+          verification all succeeded.
+          SUMMARY
+            if [ "$INDEXNOW_OUTCOME" = "failure" ]; then
+              printf '\n> IndexNow failed after a verified deployment; publishing remains successful.\n' \
+                >> "$GITHUB_STEP_SUMMARY"
+            fi
+          else
+            cat >> "$GITHUB_STEP_SUMMARY" <<'SUMMARY'
+          ## مشكلة تقنية في النشر | Technical publishing failure
+
+          **للكاتب:** لم يؤكد النظام ظهور المقال على الموقع. لا تكرر الحفظ أو
+          النشر الآن؛ المحتوى محفوظ، وعلى المالك مراجعة المشكلة التقنية أولًا.
+
+          **Owner:** Inspect the stage outcomes below and the full logs. If push
+          succeeded but live verification failed, treat production state as unknown
+          and verify the public marker before retrying or running rollback.
+          SUMMARY
+            {
+              printf '\n| Stage | Outcome |\n|---|---|\n'
+              printf '| controls | %s |\n' "${CONTROLS_OUTCOME:-not-run}"
+              printf '| cms | %s |\n' "${CMS_OUTCOME:-not-run}"
+              printf '| hugo-build | %s |\n' "${BUILD_OUTCOME:-not-run}"
+              printf '| seo | %s |\n' "${SEO_OUTCOME:-not-run}"
+              printf '| push | %s |\n' "${PUSH_OUTCOME:-not-run}"
+              printf '| live-verify | %s |\n' "${LIVE_OUTCOME:-not-run}"
+              # تأخّر المزامنة ليس فشل نشر. يُشرح هنا صراحةً وإلا قرأه الكاتب
+              # رمزًا غامضًا وظنّ أن مقاله لم يُنشر.
+              if [ "${LIVE_OUTCOME:-}" = "failure" ] && [ "${PUSH_OUTCOME:-}" = "success" ]; then
+                printf '\n> ⚠️ **النشر تمّ، لكن Hostinger لم تُظهره خلال 10 دقائق.**\n'
+                printf '> المحتوى في مستودع الموقع وسيظهر عند اكتمال المزامنة.\n'
+                printf '> أُجّل إخطار IndexNow — تلتقط محركات البحث الروابط من الخرائط.\n'
+              fi
+              printf '\n[Open full run](%s/%s/actions/runs/%s)\n' \
+                "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
