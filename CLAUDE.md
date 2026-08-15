@@ -23,8 +23,8 @@
 صفحة للموقع الرئيسي إضافة إلى `blog/` المولّد. Hugo يبني المدونة وحدها ولا
 يعيد بناء صفحات الموقع الرئيسية.
 
-- المصدر التحريري: `__TODO_REPO_CONTENT__`.
-- القوالب والبوابات: `__TODO_REPO_BUILD__`.
+- المصدر التحريري: `zeroone01z21-alt/datarecovery-blog-content`.
+- القوالب والبوابات: `zeroone01z21-alt/datarecovery-blog-build`.
 - المخرج الحي: `datarecovery-sa/blog/`، ثم مزامنة Hostinger الموجودة أصلًا.
 - `blog-deploy` فارغ ومتقاعد؛ ليس طبقة نشر أو تراجع.
 

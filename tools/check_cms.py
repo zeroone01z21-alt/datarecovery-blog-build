@@ -4,7 +4,7 @@ from __future__ import annotations
 
 # مستودع المحتوى — يُقرأ من إعداد اللوحة كي لا يُثبَّت اسم مشروع في الفاحص.
 # يبقى placeholder حتى تُنشأ المستودعات في الخطوة المشتركة.
-CONTENT_REPO = "__TODO_REPO_CONTENT__"
+CONTENT_REPO = "zeroone01z21-alt/datarecovery-blog-content"
 
 import hashlib
 import importlib.util

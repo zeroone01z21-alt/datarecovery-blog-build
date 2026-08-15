@@ -42,8 +42,8 @@
 
 | المستودع | المالك | الدور الحالي | الكتابة المعتادة |
 |---|---|---|---|
-| `__TODO_REPO_CONTENT__` | حساب المدونة | Markdown وصور فقط | الكاتب والمالك |
-| `__TODO_REPO_BUILD__` | حساب المدونة | Hugo، قوالب، بوابات، Actions | المالك/مراجعة محمية |
+| `zeroone01z21-alt/datarecovery-blog-content` | حساب المدونة | Markdown وصور فقط | الكاتب والمالك |
+| `zeroone01z21-alt/datarecovery-blog-build` | حساب المدونة | Hugo، قوالب، بوابات، Actions | المالك/مراجعة محمية |
 | `01team9639-maker/datarecovery-sa` | حساب الموقع | 42 صفحة رئيسية + `blog/` المولّد | خط الموقع وخط المدونة المحدود |
 | `__TODO_REPO_DEPLOY__` | حساب المدونة | **متقاعد وفارغ** | لا أحد |
 

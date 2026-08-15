@@ -29,7 +29,7 @@
 ## بنية المحتوى
 
 - المجموعة التحريرية الوحيدة هي `posts`، وتكتب في
-  `__TODO_REPO_CONTENT__` على فرع `main`.
+  `zeroone01z21-alt/datarecovery-blog-content` على فرع `main`.
 - كل مقال حزمة Hugo: `content/blog/<slug>/index.en.md` و`index.ar.md`، والصور
   داخل مجلد المقال نفسه.
 - لا توجد مجموعة `categories` قابلة للتحرير. التصنيفات الستة عقد مركزي في

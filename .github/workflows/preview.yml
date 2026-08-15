@@ -34,7 +34,7 @@ jobs:
       - name: المحتوى
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          repository: __TODO_REPO_CONTENT__
+          repository: zeroone01z21-alt/datarecovery-blog-content
           path: .content-src
 
       - name: التحقق من بصمات الضوابط

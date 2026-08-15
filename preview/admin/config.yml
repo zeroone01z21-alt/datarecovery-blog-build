@@ -3,7 +3,7 @@
 
 backend:
   name: "github"
-  repo: "__TODO_REPO_CONTENT__"
+  repo: "zeroone01z21-alt/datarecovery-blog-content"
   branch: "main"
   base_url: "https://sveltia-cms-auth.01team9639.workers.dev"
   auth_methods:

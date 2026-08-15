@@ -16,8 +16,8 @@ from pathlib import Path
 
 REPOSITORIES = {
     "site": "01team9639-maker/datarecovery-sa",
-    "blog-build": "https://github.com/__TODO_REPO_BUILD__.git",
-    "blog-content": "https://github.com/__TODO_REPO_CONTENT__.git",
+    "blog-build": "https://github.com/zeroone01z21-alt/datarecovery-blog-build.git",
+    "blog-content": "https://github.com/zeroone01z21-alt/datarecovery-blog-content.git",
 }
 
 

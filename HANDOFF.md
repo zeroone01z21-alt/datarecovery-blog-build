@@ -23,8 +23,8 @@
 
 | المستودع | المحتوى | الحالة |
 |---|---|---|
-| `__TODO_REPO_BUILD__` | القوالب والأدوات والضوابط (هذا المجلد) | **لم يُنشأ** |
-| `__TODO_REPO_CONTENT__` | مقالات الكاتب وصورها | **لم يُنشأ** |
+| `zeroone01z21-alt/datarecovery-blog-build` | القوالب والأدوات والضوابط (هذا المجلد) | ✅ منشأ ومدفوع |
+| `zeroone01z21-alt/datarecovery-blog-content` | مقالات الكاتب وصورها | ✅ منشأ ومدفوع |
 | `01team9639-maker/datarecovery-sa` | الموقع + `blog/` المولَّد | موجود وعام |
 
 **لماذا الفصل:** الكاتب يحتاج صلاحية الكتابة على المحتوى، ولا يجوز أن يملك
@@ -184,7 +184,7 @@ python3 tools/check_controls.py
 
 **[A3] استبدل الـplaceholders** · 🤖
 بعد ثبوت الاسمين، استبدل في مستودع القوالب:
-`__TODO_REPO_BUILD__` · `__TODO_REPO_CONTENT__` · `__TODO_REPO_DEPLOY__`
+لم يعد هناك placeholder — المستودعان منشآن، و`blog-deploy` متقاعد فلا مقابل له.
 > مملوءان مسبقًا ولا يحتاجان تغييرًا: مستودع الموقع `01team9639-maker/datarecovery-sa`،
 > ومالك مستودعات المدونة `zeroone01z21-alt`.
 

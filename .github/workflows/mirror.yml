@@ -39,7 +39,7 @@ jobs:
         # TODO(joint): المستودعات لم تُنشأ بعد. الثالث في المرجع كان مستودع نشر
         # متقاعدًا وفارغًا بقي في المصفوفة إرثًا؛ إن لم يوجد له نظير هنا فاحذف
         # سطره بدل تعبئته.
-        repo: [__TODO_REPO_CONTENT__, __TODO_REPO_BUILD__, __TODO_REPO_DEPLOY__]
+        repo: [zeroone01z21-alt/datarecovery-blog-content, zeroone01z21-alt/datarecovery-blog-build]
     steps:
       - name: نسخ ${{ matrix.repo }}
         env:
