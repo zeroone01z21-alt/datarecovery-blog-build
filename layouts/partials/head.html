@@ -92,8 +92,8 @@
 {{/* relURL يبني المسار من baseURL — لا تكتبه يدويًّا:
      مسار مثل "/blog/css/..." يكسر أي معاينة أو نطاق فرعي لا يطابق
      الإنتاج حرفيًّا، وينكشف كصفحة بلا تنسيق بعد النشر. */}}
-<link rel="preload" as="font" type="font/woff2" crossorigin
-      href="{{ (printf "fonts/%s.woff2" (cond (eq .Lang "ar") "cairo-arabic-400" "nm-400")) | relURL }}">
+{{/* لا تحميل مسبق للخطوط هنا: site-css.html أدناه يحمّل Alexandria من
+     الموقع مسبقًا بنسخته المبصومة، والمدونة لا تشحن خطًّا خاصًّا بها. */}}
 {{- /* CSS الموقع أولًا: التنقّل والبرغر والقائمة الجانبية والفوتر تعتمد
        عليه بالكامل. بنفس بصمة ?v= المستخدمة على الموقع، فالمتصفح يصيب
        ذاكرته ولا يُنزّله ثانيةً عند الانتقال بين الموقع والمدونة. */ -}}
@@ -111,12 +111,11 @@
   fingerprint يضع تجزئة المحتوى في اسم الملف، فيصير الرابط جديدًا مع كل
   تعديل حقيقي، ويبقى ثابتًا حين لا يتغيّر شيء فلا نُبطل ذاكرة بلا سبب.
 
-  وfonts.css يبقى في مجلد fonts/ بعد البصم، فمسارات url() النسبية إلى
-  ملفات woff2 في static/fonts تظل صحيحة.
+  ولا fonts.css هنا: الخط Alexandria يأتي من الموقع عبر site-css.html.
+  شحن نسخة ثانية منه يعني 102 كيلوبايت مكرّرة، وذاكرة متصفح لا تُصاب عند
+  الانتقال بين الموقع والمدونة، واحتمال انحراف الخط بين النصفين.
 */ -}}
-{{- $fonts := resources.Get "fonts/fonts.css" | minify | fingerprint "sha256" -}}
-{{- $blog  := resources.Get "css/blog.css"    | minify | fingerprint "sha256" -}}
-<link rel="stylesheet" href="{{ $fonts.RelPermalink }}">
+{{- $blog := resources.Get "css/blog.css" | minify | fingerprint "sha256" -}}
 {{- /* CSS المدونة بعده: يخصّ تنسيق المقال وحده ولا يمسّ هيكل الموقع */ -}}
 <link rel="stylesheet" href="{{ $blog.RelPermalink }}">
 {{ partial "analytics.html" . }}

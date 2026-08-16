@@ -1,15 +1,20 @@
-/* Zero 2 One Data Recovery — blog
+/* مدونة من الصفر إلى الواحد
    The blog keeps the main site's visual language without loading its large
    animation bundle. Logical properties make this one stylesheet work in RTL. */
 
 :root {
-  --ink: #1c1d20;
-  --ink-deep: #141517;
-  --cream: #FFFDED;
-  --orange: #f9460e;
-  --orange-text: #d93605;
-  --muted: color-mix(in srgb, var(--ink) 62%, #fff);
-  --line: color-mix(in srgb, var(--ink) 17%, transparent);
+  /* ألوان الموقع نفسها، مأخوذة من assets/css/main.css في مستودع الموقع.
+     المدونة تُحمَّل داخل هيكل الموقع (هيدر ودرج وفوتر)، فأي انحراف في
+     اللون يجعل نصف الصفحة بهوية ونصفها بأخرى — وهو ما بُني إصدار الهيكل
+     لمنعه أصلاً. القيم هنا نسخ حرفية لا اجتهاد. */
+  --ink: #f4f1e5;              /* نص فاتح على أرضية داكنة */
+  --ink-deep: #ffffff;         /* العناوين */
+  --cream: #011e22;            /* الأرضية — bg-dark في الموقع */
+  --surface: #031214;          /* البطاقات — bg-dark-2 */
+  --orange: #12c7d7;           /* اللون المميّز — accent */
+  --orange-text: #12c7d7;      /* السماوي يمرّ AA على الأرضية الداكنة */
+  --muted: #8fb0b2;            /* muted-dark */
+  --line: #1c4547;             /* border-dark */
   --outer: 100rem;
   /* عرض عمود القراءة.
      المعادلة السابقة `4rem + 34vw` لا تبلغ حدّها الأعلى إلا عند شاشة
@@ -44,14 +49,14 @@
   position: relative;
   padding-top: clamp(6rem, 4rem + 3vw, 8.5rem);
   color: var(--ink);
-  font-family: 'Dennis Sans', system-ui, -apple-system, sans-serif;
+  font-family: 'Alexandria', system-ui, -apple-system, sans-serif;
   font-size: clamp(1rem, 1.2vw, 1.1875rem);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
-html[dir="rtl"] .blog-body { font-family: 'Cairo', system-ui, sans-serif; }
+html[dir="rtl"] .blog-body { font-family: 'Alexandria', system-ui, sans-serif; }
 
 .blog-body a { color: inherit; }
 .blog-body img { max-width: 100%; height: auto; }
