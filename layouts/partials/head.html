@@ -118,7 +118,19 @@
 {{- $blog := resources.Get "css/blog.css" | minify | fingerprint "sha256" -}}
 {{- /* CSS المدونة بعده: يخصّ تنسيق المقال وحده ولا يمسّ هيكل الموقع */ -}}
 <link rel="stylesheet" href="{{ $blog.RelPermalink }}">
-{{ partial "analytics.html" . }}
+{{- /*
+  ولا تحليلات هنا: GTM يأتي من ملف الموقع نفسه عبر site-scripts.html.
+
+  كان هذا السطر ينادي جزئية تكتب <script> **مضمّنًا**، وسياسة الأمان على
+  النطاق كله `script-src 'self' https://www.googletagmanager.com` بلا
+  'unsafe-inline' — فكان المتصفّح يحجب السكربت، والمدونة بلا أي قياس منذ
+  إطلاقها. وكانت الجزئية تنادي أيضًا gtag('config') وتحمّل gtm.js معًا،
+  فلو نُفِّذت لعدّت page_view مرتين.
+
+  الملف الخارجي assets/js/analytics.js يحلّ الاثنين معًا: same-origin
+  فتقبله السياسة، وGTM وحده فلا ازدواج، ونسخة واحدة للموقع والمدونة فلا
+  يفترق قياس النصفين.
+*/ -}}
 
 {{/* بيانات منظّمة: Article + BreadcrumbList، مربوطة بكيان المنظمة على الموقع */}}
 {{- if $isPost }}
