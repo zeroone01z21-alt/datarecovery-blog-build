@@ -20,7 +20,7 @@ env:
   HUGO_SHA256: "fea17b8c076f950bb2e9f9486667bdaa29422883888d509d63931c73e8a9b3a4"
   # TODO(joint): نطاق المعاينة الفرعي لم يُنشأ بعد في لوحة الاستضافة، فاسمه
   # قرار مشترك. المسار /blog/ ثابت. عدّل هنا **وفي فحص noindex أدناه** معًا.
-  PREVIEW_BASE_URL: "https://__TODO_PREVIEW_HOST__/blog/"
+  PREVIEW_BASE_URL: "https://preview.datarecovery-sa.com/blog/"
 
 jobs:
   preview:
@@ -106,7 +106,7 @@ jobs:
           from html.parser import HTMLParser
           from pathlib import Path
 
-          expected_base = "https://__TODO_PREVIEW_HOST__/blog/"
+          expected_base = "https://preview.datarecovery-sa.com/blog/"
 
           class Metadata(HTMLParser):
               def __init__(self):
