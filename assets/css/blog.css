@@ -43,11 +43,13 @@
 .blog-body *, .blog-body *::before, .blog-body *::after { box-sizing: border-box; }
 
 .blog-body {
-  /* الأب الموضَّع لشريط التنقّل: الشريط `position:absolute; top:0` في CSS
-     الموقع، فبلا أبٍ موضَّع يقفز إلى أقرب واحد ويهبط في مكان خاطئ.
-     والحشو العلوي يفسح ارتفاعه (91px على 1440) فلا يركب على المحتوى. */
-  position: relative;
-  padding-top: clamp(6rem, 4rem + 3vw, 8.5rem);
+  /* ولا حشوة علوية هنا، ولا `position: relative`. كانت الأولى تعوّض ارتفاع
+     شريط التنقّل والثانية تمنحه أبًا موضَّعًا — وكلتاهما مبنيّتان على أن
+     الشريط `position: absolute` في CSS الموقع. وهو ليس كذلك: قاعدته
+     `position: sticky; top: 0` (assets/css/main.css)، فيحجز مساحته في
+     السياق الطبيعي بنفسه ولا يحتاج تعويضًا، ويلتصق بالنافذة ما لم يحبسه
+     أبٌ وسيط. صار الشريط ابنًا مباشرًا لـ<body> كما في الموقع، فسقطت
+     الحاجة إلى الاثنتين. */
   color: var(--ink);
   font-family: 'Alexandria', system-ui, -apple-system, sans-serif;
   font-size: clamp(1rem, 1.2vw, 1.1875rem);

@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import sys
 import uuid
@@ -59,7 +60,76 @@ def bundle_is_archived(bundle: Path) -> bool:
     return states == {True}
 
 
-def prepare(source: Path) -> tuple[int, int]:
+ATX_H1 = re.compile(r"^#[ \t]+(?P<text>\S.*?)[ \t]*#*[ \t]*$")
+FENCE = re.compile(r"^[ \t]{0,3}(?:```+|~~~+)")
+
+
+def _comparable(value: str) -> str:
+    """يوحّد العنوان للمقارنة: بلا تشكيل markdown ولا فراغات زائدة."""
+    return re.sub(r"[\s*_`~]+", " ", str(value)).strip().casefold()
+
+
+def demote_body_h1(bundle: Path) -> list[str]:
+    """يُصلح عناوين h1 داخل متن المقال، على النسخة المجهَّزة لا على مصدر الكاتب.
+
+    القالب يبني h1 وحيدًا من `title`، فأي h1 في المتن يُنتج عنوانين. يوقف ذلك
+    `check_seo.py` ويحجب النشر، ويُنتج صفحة تُربك قارئ الشاشة الذي يتنقّل
+    بالعناوين.
+
+    ولا يقع بخطأ الكاتب: لوحة Sveltia لا تعرض زرّ heading-one إطلاقًا
+    (`tools/generate_cms.py` يستبعده)، لكن اللصق من Word أو من صفحة ويب يجلب
+    العنوان نصًّا مع بقية المقال. حدث في 2026-08-18 وأوقف أول مقال ينشره
+    الكاتب بنفسه.
+
+    فالإصلاح هنا بدل ردّ المقال إليه: h1 يكرّر `title` يُحذف لأنه تكرار محض،
+    وأي h1 آخر يُخفَّض إلى h2 فيبقى نصّه وموضعه. وما داخل كتل الشيفرة لا
+    يُمَسّ — قد يكون `#` تعليقًا في مثال برمجي لا عنوانًا.
+    """
+    notes: list[str] = []
+    for path in sorted(bundle.glob("index.*.md")):
+        text = path.read_text(encoding="utf-8")
+        try:
+            data, body = parse_front_matter(text)
+        except Exception:
+            continue
+        title = _comparable(data.get("title", ""))
+
+        lines = body.split("\n")
+        out: list[str] = []
+        fenced = False
+        removed = demoted = 0
+        for line in lines:
+            if FENCE.match(line):
+                fenced = not fenced
+                out.append(line)
+                continue
+            match = None if fenced else ATX_H1.match(line)
+            if match is None:
+                out.append(line)
+                continue
+            if title and _comparable(match.group("text")) == title:
+                removed += 1
+                # واسحب سطرًا فارغًا تاليًا كي لا يبقى فراغ مزدوج مكان العنوان.
+                if out and out[-1].strip() == "":
+                    out.pop()
+                continue
+            out.append("#" + line.lstrip())
+            demoted += 1
+
+        if not (removed or demoted):
+            continue
+        path.write_text(text[: len(text) - len(body)] + "\n".join(out), encoding="utf-8")
+        detail = " · ".join(
+            part for part in (
+                f"حُذف {removed} عنوانًا مكرّرًا للعنوان الرئيسي" if removed else "",
+                f"خُفّض {demoted} عنوانًا إلى h2" if demoted else "",
+            ) if part
+        )
+        notes.append(f"{bundle.name}/{path.name}: {detail}")
+    return notes
+
+
+def prepare(source: Path) -> tuple[int, int, list[str]]:
     reject_symlinks(source)
     source = source.resolve()
     if not source.is_dir():
@@ -72,6 +142,7 @@ def prepare(source: Path) -> tuple[int, int]:
     previous: Path | None = None
     copied = 0
     archived = 0
+    notes: list[str] = []
     try:
         index_files = sorted(source.glob("_index.*.md"))
         required_indexes = {"_index.en.md", "_index.ar.md"}
@@ -91,6 +162,7 @@ def prepare(source: Path) -> tuple[int, int]:
                     archived += 1
                     continue
                 shutil.copytree(bundle, staging / bundle.name)
+                notes.extend(demote_body_h1(staging / bundle.name))
                 copied += 1
 
         (staging / MARKER).write_text(
@@ -137,7 +209,7 @@ def prepare(source: Path) -> tuple[int, int]:
                 os.replace(previous, DESTINATION)
             except OSError:
                 pass
-    return copied, archived
+    return copied, archived, notes
 
 
 def main() -> int:
@@ -145,10 +217,12 @@ def main() -> int:
         print("  الاستخدام: prepare_content.py <content-source>")
         return 2
     try:
-        copied, archived = prepare(Path(sys.argv[1]))
+        copied, archived, notes = prepare(Path(sys.argv[1]))
     except PrepareError as exc:
         print(f"  ❌ تجهيز المحتوى فشل: {exc}")
         return 1
+    for note in notes:
+        print(f"  ✏️  {note}")
     print(f"  ✅ جُهّزت {copied} حزمة · استُبعدت {archived} حزمة مؤرشفة")
     return 0
 
