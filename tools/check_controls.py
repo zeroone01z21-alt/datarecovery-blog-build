@@ -124,6 +124,41 @@ def write_manifest(paths):
     print(f"  حُدِّثت البصمات: {len(paths)} ملف")
 
 
+def unscoped_custom_properties() -> list[tuple[str, str, str]]:
+    """يمنع تسريب متغيّرات المدونة إلى هيكل الموقع.
+
+    المتغيّرات المخصّصة تُورَّث لكل ما تحت العنصر المعرَّفة عليه. وتعريفها على
+    ‏`:root` أو `html` أو `body` في blog.css يجعلها تطغى على متغيّرات الموقع في
+    الصفحة كلها — والهيكل (الهيدر والدرج والبرغر والفوتر) يعيش **خارج**
+    ‏`.blog-body` ويقرأ الأسماء نفسها.
+
+    حدث في 2026-08-19: ‏`--ink` هنا مقلوب (نصّ فاتح لأرضية داكنة)، فأخرجت قاعدة
+    الموقع `.menu-fab.on-dark{background:var(--white);color:var(--ink)}` برغرًا
+    أبيض بخطوط كريمية يكاد لا يُرى — بينما هو أسود واضح على الموقع. التعليق
+    النثري في blog.css لم يمنعه، فصار الفحص آليًّا.
+    """
+    import re
+    css_path = os.path.join(ROOT, "assets", "css", "blog.css")
+    if not os.path.isfile(css_path):
+        return []
+    with open(css_path, encoding="utf-8") as handle:
+        css = handle.read()
+    found = []
+    for match in re.finditer(r"(?:^|\})\s*([^{}@]+?)\s*\{([^{}]*)\}", css, re.M):
+        selector = match.group(1).strip().splitlines()[-1].strip()
+        if ".blog-body" in selector:
+            continue
+        if not re.search(r"(^|[\s,>+~])(:root|html|body)($|[\s,:.\[])", selector):
+            continue
+        for prop in re.findall(r"(--[a-z0-9-]+)\s*:", match.group(2)):
+            found.append((
+                "متغيّر خارج .blog-body",
+                f"assets/css/blog.css — {selector} {{ {prop} }}",
+                "يُورَّث إلى هيكل الموقع ويطغى على متغيّراته. انقله إلى .blog-body.",
+            ))
+    return found
+
+
 def main():
     paths = guarded_paths()
 
@@ -136,7 +171,7 @@ def main():
         print("  ❌ لا يوجد controls/fingerprints.txt — وَلِّده بـ --update")
         return 1
 
-    problems = []
+    problems = unscoped_custom_properties()
 
     for rel in paths:
         actual = sha256(os.path.join(ROOT, rel))
