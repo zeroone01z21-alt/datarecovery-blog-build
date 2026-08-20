@@ -17,6 +17,7 @@ Usage:
 from __future__ import annotations
 
 import os
+import re
 import sys
 import tempfile
 import xml.etree.ElementTree as ET
@@ -69,6 +70,44 @@ def validate_url(value: str, prefix: str) -> None:
         or not value.startswith(prefix)
     ):
         fail(f"رابط خارج نطاق الخريطة أو غير صالح: {value}")
+
+
+NOINDEX = re.compile(
+    r'name=["\']?robots["\']?[^>]*content=["\']?[^"\'>]*noindex', re.I
+)
+
+
+def drop_noindex(output: Path, name: str, prefix: str) -> int:
+    """يُسقط من الخريطة كل رابط تحمل صفحته noindex.
+
+    الخريطة تعني «اكتشف هذه الصفحة وافهرسها»، وnoindex يعني «لا تفهرسها».
+    اجتماعهما إشارة متناقضة ترصدها Search Console كخطأ. رصد تدقيق 2026-08-20
+    ثماني صفحات تصنيف فارغة بالحالتين معًا.
+
+    الحذف هنا لا في إعداد Hugo عمدًا: الصفحة تبقى موجودة وقابلة للزيارة
+    والزحف عبر الروابط الداخلية، وتعود إلى الخريطة تلقائيًّا يوم تُنشر فيها
+    مقالات ويُرفع عنها noindex — بلا تعديل إعداد.
+    """
+    path = output / name
+    tree = read_xml(path)
+    root = tree.getroot()
+    removed = 0
+    for node in list(root.findall(f"{{{NS}}}url")):
+        loc = node.find(f"{{{NS}}}loc")
+        value = (loc.text or "").strip() if loc is not None else ""
+        if not value.startswith(prefix):
+            continue
+        page = output / value[len(prefix):].strip("/") / "index.html"
+        try:
+            html = page.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        if NOINDEX.search(html):
+            root.remove(node)
+            removed += 1
+    if removed:
+        tree.write(path, encoding="utf-8", xml_declaration=True)
+    return removed
 
 
 def validate_and_rewrite(output: Path) -> None:
@@ -150,6 +189,10 @@ def validate_and_rewrite(output: Path) -> None:
     # stale destinations left by a previous non-clean local build.
     for lang, suffix in old_suffixes.items():
         os.replace(output / suffix, output / new_names[lang])
+
+    dropped = sum(drop_noindex(output, new_names[lang], prefix) for lang in LANGUAGES)
+    if dropped:
+        print(f"  ✂️  أُسقط {dropped} رابطًا يحمل noindex من الخرائط")
 
     descriptor, temporary_name = tempfile.mkstemp(
         prefix=".sitemap-index-", suffix=".xml", dir=output,

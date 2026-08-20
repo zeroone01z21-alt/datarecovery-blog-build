@@ -512,11 +512,18 @@ def main() -> int:
         page = Page(path=path, relative=relative)
         parser = DocumentParser(page)
         try:
-            parser.feed(path.read_text(encoding="utf-8"))
+            raw = path.read_text(encoding="utf-8")
+            parser.feed(raw)
             parser.close()
         except (OSError, UnicodeError) as exc:
             check.add(page, f"تعذّر قراءة HTML: {exc}")
             continue
+        # عنصر نائب نجا إلى الناتج. حدث فعلًا: بقي __LANGSWITCH__ في كل صفحة
+        # مدونة، فأنتج رابط لغة مكسورًا في عشرين صفحة من عشرين — بلا أي خطأ
+        # في البناء. رصده تدقيق خارجي في 2026-08-20، لا بوابة من بواباتنا.
+        for token in ("__LANGSWITCH__", "__TODO_", "OWNER_MUST_"):
+            if token in raw:
+                check.add(page, f"عنصر نائب لم يُستبدل في الناتج: {token}")
         pages.append(page)
         validate_page(page, check)
 

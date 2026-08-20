@@ -1,0 +1,8 @@
+{{- $target := "" -}}
+{{- range .AllTranslations -}}
+  {{- if ne .Lang $.Lang }}{{ $target = .RelPermalink }}{{ end -}}
+{{- end -}}
+{{- if not $target -}}
+  {{- $target = cond (eq .Lang "ar") "/blog/en/" "/blog/" -}}
+{{- end -}}
+{{- $target -}}
