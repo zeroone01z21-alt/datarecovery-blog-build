@@ -86,7 +86,9 @@ html[dir="rtl"] .blog-body { font-family: 'Alexandria', system-ui, sans-serif; }
 .blog-hero {
   padding: clamp(2.5rem, 6vw, 6.5rem) var(--page-pad) clamp(3.5rem, 7vw, 7rem);
   display: grid;
-  grid-template-columns: minmax(0, 1.12fr) minmax(19rem, .88fr);
+  /* `min(100%, …)` هو المفتاح: يسمح للمسار بالنزول تحت حدّه الأدنى حين
+     تضيق الحاوية، فينهار العمودان إلى عمود بدل أن يفيضا خارج الشاشة. */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr));
   align-items: center;
   gap: clamp(2.5rem, 6vw, 7rem);
 }
@@ -161,7 +163,7 @@ html[dir="rtl"] .blog-title-brand { text-align: right; }
 .category-nav {
   padding-block: 1.25rem;
   display: grid;
-  grid-template-columns: minmax(10rem, .35fr) minmax(0, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
   align-items: center;
   gap: 1rem 2rem;
   border-block: 1px solid var(--line);
@@ -209,7 +211,9 @@ html[dir="rtl"] .category-nav ul { justify-content: flex-start; }
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  /* ثلاثة أعمدة ثابتة كانت تُبقى عند 440px فيصير العمود ~120px وتتكسّر
+     الكلمة العربية عموديًّا حرفًا حرفًا. auto-fit يختار العدد الذي يتّسع. */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
   gap: clamp(1rem, 2vw, 2rem);
   list-style: none;
 }
@@ -289,7 +293,7 @@ html[dir="rtl"] .card h2 { letter-spacing: 0; line-height: 1.45; }
   margin-block-start: clamp(2.5rem, 5vw, 5rem);
   padding: clamp(1.5rem, 5vw, 5rem);
   display: grid;
-  grid-template-columns: minmax(15rem, .8fr) minmax(0, 1.2fr);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
   align-items: center;
   gap: clamp(2rem, 6vw, 7rem);
   overflow: hidden;
@@ -435,7 +439,9 @@ html[dir="rtl"] .empty-state h2 { letter-spacing: 0; line-height: 1.35; }
   margin: clamp(2.5rem, 5vw, 5rem) 0 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  /* ثلاثة أعمدة ثابتة كانت تُبقى عند 440px فيصير العمود ~120px وتتكسّر
+     الكلمة العربية عموديًّا حرفًا حرفًا. auto-fit يختار العدد الذي يتّسع. */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
   gap: clamp(1rem, 2vw, 2rem);
   list-style: none;
 }
