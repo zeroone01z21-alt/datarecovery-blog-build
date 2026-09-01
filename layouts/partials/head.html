@@ -17,7 +17,11 @@
   {{- with $.Resources.GetMatch . }}{{ $img = .Permalink }}{{ end -}}
 {{- end -}}
 {{- $desc := cond $is404 (T "notFoundDescription") (.Description | default .Site.Params.description | default .Summary) -}}
-{{- $pageTitle := cond $is404 (T "notFound") (cond .IsHome .Site.Title .Title) -}}
+{{- /* seoTitle يغلب على title في <title> وحده. العنوان المعروض والمخطّط وفتات
+       الخبز تبقى على .Title: ما يراه القارئ داخل الصفحة يجب أن يطابق ما وعدته
+       به نتيجة البحث، لا نسخة مضغوطة منه. وغيابه يعيد السلوك السابق حرفيًّا. */ -}}
+{{- $ownTitle := cond (ne (.Params.seoTitle | default "") "") .Params.seoTitle .Title -}}
+{{- $pageTitle := cond $is404 (T "notFound") (cond .IsHome .Site.Title $ownTitle) -}}
 {{- $documentTitle := $pageTitle -}}
 {{- if not .IsHome -}}
   {{- $brandedTitle := printf "%s — %s" $pageTitle .Site.Title -}}

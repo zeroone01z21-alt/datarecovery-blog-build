@@ -28,6 +28,7 @@ OAUTH_PLACEHOLDER = "OWNER_MUST_SET_OAUTH_BASE_URL"
 
 LABELS = {
     "title": "عنوان المقال",
+    "seoTitle": "عنوان نتيجة البحث (اختياري)",
     "description": "الوصف الذي يظهر في نتائج البحث",
     "slug": "الرابط القصير بالإنجليزية",
     "date": "تاريخ النشر",
@@ -40,6 +41,7 @@ LABELS = {
 }
 
 HINTS = {
+    "seoTitle": "اتركه فارغًا وسيُستخدم عنوان المقال. املأه فقط حين تريد عنوانًا أقصر أو أوضح في نتائج البحث — يُلحق به اسم المدونة، وجوجل يقصّ عند نحو 60 محرفًا.",
     "slug": "استخدم حروفًا إنجليزية صغيرة وأرقامًا وشرطات. لا تغيّره بعد أول نشر؛ تغيير الرابط يحتاج تحويل 301 من المالك.",
     "date": "يُملأ تلقائيًا عند إنشاء المقال. عدّله فقط عند جدولة تاريخ النشر.",
     "lastmod": "حدّثه عند تعديل مقال منشور. اتركه فارغًا للمقال الجديد.",
@@ -152,8 +154,12 @@ def build_fields(schema: dict[str, Any]) -> list[dict[str, Any]]:
     rules = schema["fields"]
     fields: list[dict[str, Any]] = []
 
-    for name in ("title", "description"):
-        field = common_field(name, rules[name], i18n=True)
+    for name in ("title", "seoTitle", "description"):
+        rule = rules.get(name)
+        # seoTitle اختياري في العقد؛ غيابه من عقد أقدم يجب ألّا يُسقط اللوحة.
+        if rule is None:
+            continue
+        field = common_field(name, rule, i18n=True)
         field["widget"] = "string"
         fields.append(field)
 

@@ -70,6 +70,15 @@ collections:
         maxlength: 70
         widget: "string"
       -
+        name: "seoTitle"
+        label: "عنوان نتيجة البحث (اختياري)"
+        required: false
+        i18n: true
+        hint: "اتركه فارغًا وسيُستخدم عنوان المقال. املأه فقط حين تريد عنوانًا أقصر أو أوضح في نتائج البحث — يُلحق به اسم المدونة، وجوجل يقصّ عند نحو 60 محرفًا."
+        minlength: 10
+        maxlength: 60
+        widget: "string"
+      -
         name: "description"
         label: "الوصف الذي يظهر في نتائج البحث"
         required: true
