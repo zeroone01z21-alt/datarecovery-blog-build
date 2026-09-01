@@ -17,13 +17,18 @@
   {{- with $.Resources.GetMatch . }}{{ $img = .Permalink }}{{ end -}}
 {{- end -}}
 {{- $desc := cond $is404 (T "notFoundDescription") (.Description | default .Site.Params.description | default .Summary) -}}
-{{- /* seoTitle يغلب على title في <title> وحده. العنوان المعروض والمخطّط وفتات
-       الخبز تبقى على .Title: ما يراه القارئ داخل الصفحة يجب أن يطابق ما وعدته
-       به نتيجة البحث، لا نسخة مضغوطة منه. وغيابه يعيد السلوك السابق حرفيًّا. */ -}}
-{{- $ownTitle := cond (ne (.Params.seoTitle | default "") "") .Params.seoTitle .Title -}}
-{{- $pageTitle := cond $is404 (T "notFound") (cond .IsHome .Site.Title $ownTitle) -}}
+{{- $pageTitle := cond $is404 (T "notFound") (cond .IsHome .Site.Title .Title) -}}
+{{- /* meta_title يحلّ محلّ <title> كما كُتب، بلا إلحاق اسم المدونة: من يصوغ
+       عنوانًا لجوجل عمدًا يريد ما كتبه، واللاحقة تسرق منه نحو عشرين محرفًا من
+       سبعين. والفرعان متنافيان بـelse if، فلا تُضاف اللاحقة إلى عنوان صريح.
+
+       ولا يمسّ <h1> ولا og:title ولا فتات الخبز: ما يراه القارئ بعد النقر يجب
+       أن يطابق ما نقر عليه، وبطاقة المشاركة يقرؤها إنسان لا زاحف. */ -}}
+{{- $metaTitle := .Params.meta_title | default "" -}}
 {{- $documentTitle := $pageTitle -}}
-{{- if not .IsHome -}}
+{{- if $metaTitle -}}
+  {{- $documentTitle = $metaTitle -}}
+{{- else if not .IsHome -}}
   {{- $brandedTitle := printf "%s — %s" $pageTitle .Site.Title -}}
   {{- /* لا نفشل عنوانًا يسمح به عقد المحتوى لمجرد إضافة اسم المدونة. */ -}}
   {{- if le (strings.RuneCount $brandedTitle) 70 }}
