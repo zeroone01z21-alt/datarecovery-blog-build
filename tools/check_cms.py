@@ -108,6 +108,19 @@ def main() -> int:
     if i18n.get("locales") != schema["languages"]["available"]:
         problems.append("لغات اللوحة انحرفت عن schema.json")
 
+    # ZZ في Day.js تكتب الإزاحة بلا نقطتين (+0300)، وهي صيغة يرفضها
+    # check_content وHugo معًا فتوقف كل نشر. حدث مرّتين — 2026-08-18
+    # و2026-09-06 — ولذلك صار حارسًا بدل أن يُصلَح مرّة ثالثة.
+    for field in config.get("collections", [{}])[0].get("fields", []):
+        if field.get("widget") != "datetime":
+            continue
+        fmt = field.get("format", "")
+        if "ZZ" in fmt:
+            problems.append(
+                f'حقل «{field.get("name")}» يستعمل ZZ فيكتب +0300 بلا نقطتين. '
+                'الرمز الصحيح Z وحده.'
+            )
+
     collection_folder, public_folder = generator.bundle_locations(schema)
     if config.get("media_folder") != f"/{collection_folder}":
         problems.append("مجلد الوسائط الجذري مفقود أو خارج نطاق محتوى المدونة")

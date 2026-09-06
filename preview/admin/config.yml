@@ -104,7 +104,7 @@ collections:
         i18n: "duplicate"
         hint: "يُملأ تلقائيًا عند إنشاء المقال. عدّله فقط عند جدولة تاريخ النشر."
         widget: "datetime"
-        format: "YYYY-MM-DDTHH:mm:ssZZ"
+        format: "YYYY-MM-DDTHH:mm:ssZ"
         date_format: "YYYY-MM-DD"
         time_format: "HH:mm"
         picker_utc: false
@@ -116,7 +116,7 @@ collections:
         i18n: "duplicate"
         hint: "حدّثه عند تعديل مقال منشور. اتركه فارغًا للمقال الجديد."
         widget: "datetime"
-        format: "YYYY-MM-DDTHH:mm:ssZZ"
+        format: "YYYY-MM-DDTHH:mm:ssZ"
         date_format: "YYYY-MM-DD"
         time_format: "HH:mm"
         picker_utc: false

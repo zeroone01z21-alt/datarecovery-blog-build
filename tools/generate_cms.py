@@ -172,7 +172,11 @@ def build_fields(schema: dict[str, Any]) -> list[dict[str, Any]]:
          # بلا صيغة صريحة تكتب اللوحة "2026-08-07T20:22" فيرفضها Hugo
          # ويسقط البناء كله برسالة إنجليزية لا يفهمها الكاتب.
          # حدث فعليًّا في 2026-08-07 وأوقف النشر.
-         "format": "YYYY-MM-DDTHH:mm:ssZZ",
+         #
+         # وZZ في Day.js تكتب الإزاحة بلا نقطتين: +0300. وهي الصيغة التي
+         # يرفضها check_content وHugo معًا، فأوقفت النشر مرّتين — في
+         # 2026-08-18 و2026-09-06. الرمز الصحيح Z وحده: +03:00.
+         "format": "YYYY-MM-DDTHH:mm:ssZ",
          "date_format": "YYYY-MM-DD", "time_format": "HH:mm",
          "picker_utc": False}, "default": "{{now}}"})
     fields.append(date)
@@ -182,7 +186,11 @@ def build_fields(schema: dict[str, Any]) -> list[dict[str, Any]]:
          # بلا صيغة صريحة تكتب اللوحة "2026-08-07T20:22" فيرفضها Hugo
          # ويسقط البناء كله برسالة إنجليزية لا يفهمها الكاتب.
          # حدث فعليًّا في 2026-08-07 وأوقف النشر.
-         "format": "YYYY-MM-DDTHH:mm:ssZZ",
+         #
+         # وZZ في Day.js تكتب الإزاحة بلا نقطتين: +0300. وهي الصيغة التي
+         # يرفضها check_content وHugo معًا، فأوقفت النشر مرّتين — في
+         # 2026-08-18 و2026-09-06. الرمز الصحيح Z وحده: +03:00.
+         "format": "YYYY-MM-DDTHH:mm:ssZ",
          "date_format": "YYYY-MM-DD", "time_format": "HH:mm",
          "picker_utc": False})
     fields.append(lastmod)
