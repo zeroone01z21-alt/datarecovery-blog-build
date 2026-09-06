@@ -274,7 +274,15 @@ def build_config(schema: dict[str, Any], settings: dict[str, Any]) -> dict[str, 
             "structure": "multiple_files",
             "locales": languages["available"],
             "default_locale": languages["default"],
-            "initial_locales": "all",
+            # "all" كان يفتح اللغتين معًا في كل مقال جديد، فيصير على الكاتب
+            # تعبئة الإنجليزية ليتمكّن من الحفظ — وهو خلاف ما ينصّ عليه دليله
+            # نفسه من أن الإنجليزية اختيارية. "default" يفتح العربية وحدها،
+            # ويترك مفتاح الإنجليزية في المحرّر لمن أراد ترجمة.
+            #
+            # ولا بوّابة تعترض: check_content لا تشترط index.en.md، وفحص
+            # hreflang في check_seo يتحقّق من البدائل الموجودة فقط ولا يطالب
+            # بنسخة ثانية. ومقال عربي وحده يخرج بـar وx-default متطابقين.
+            "initial_locales": "default",
         },
         "slug": {
             "encoding": "ascii",

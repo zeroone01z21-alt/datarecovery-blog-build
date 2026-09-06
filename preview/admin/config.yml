@@ -15,7 +15,7 @@ i18n:
     - "ar"
     - "en"
   default_locale: "ar"
-  initial_locales: "all"
+  initial_locales: "default"
 slug:
   encoding: "ascii"
   sanitize_replacement: "-"
