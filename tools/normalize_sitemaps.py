@@ -26,7 +26,11 @@ from urllib.parse import urlsplit
 
 
 NS = "http://www.sitemaps.org/schemas/sitemap/0.9"
+XHTML = "http://www.w3.org/1999/xhtml"
 ET.register_namespace("", NS)
+# البادئة هي «html» لا «xhtml»: هكذا يكتبها Hugo في خريطته، وأي تسجيل
+# مخالف يُعيد ElementTree كتابة كل بدائل اللغة ببادئة أخرى بلا داعٍ.
+ET.register_namespace("html", XHTML)
 LANGUAGES = ("en", "ar")
 
 
@@ -77,8 +81,8 @@ NOINDEX = re.compile(
 )
 
 
-def drop_noindex(output: Path, name: str, prefix: str) -> int:
-    """يُسقط من الخريطة كل رابط تحمل صفحته noindex.
+def drop_noindex(output: Path, name: str, prefix: str) -> set[str]:
+    """يُسقط من الخريطة كل رابط تحمل صفحته noindex، ويُعيد ما أُسقط.
 
     الخريطة تعني «اكتشف هذه الصفحة وافهرسها»، وnoindex يعني «لا تفهرسها».
     اجتماعهما إشارة متناقضة ترصدها Search Console كخطأ. رصد تدقيق 2026-08-20
@@ -91,7 +95,7 @@ def drop_noindex(output: Path, name: str, prefix: str) -> int:
     path = output / name
     tree = read_xml(path)
     root = tree.getroot()
-    removed = 0
+    removed: set[str] = set()
     for node in list(root.findall(f"{{{NS}}}url")):
         loc = node.find(f"{{{NS}}}loc")
         value = (loc.text or "").strip() if loc is not None else ""
@@ -104,7 +108,35 @@ def drop_noindex(output: Path, name: str, prefix: str) -> int:
             continue
         if NOINDEX.search(html):
             root.remove(node)
-            removed += 1
+            removed.add(value)
+    if removed:
+        tree.write(path, encoding="utf-8", xml_declaration=True)
+    return removed
+
+
+def strip_dangling_alternates(output: Path, name: str, dropped: set[str]) -> int:
+    """يمسح كل xhtml:link يشير إلى رابط أُسقط من الخرائط.
+
+    الإسقاط أعلاه يعالج طرفًا واحدًا: الصفحة الفارغة تخرج من خريطتها. لكن
+    شقيقتها العامرة تبقى تُعلنها بديلًا لها، فيصير hreflang يشير إلى رابط لا
+    وجود له في أي خريطة — وهو بالضبط ما يرفضه tools/check_indexing.py.
+
+    ظهر في 2026-09-07 مع أول مقال يُنشر بالعربية وحدها في تصنيف بلا مقابل
+    إنجليزي: صفحة التصنيف العربية عامرة، والإنجليزية فارغة فسقطت، وبقي
+    hreflang=en معلّقًا في العربية فأوقف النشر. وهذه الحالة تتكرر مع كل
+    تصنيف جديد يبدأ بمقال أحادي اللغة.
+    """
+    if not dropped:
+        return 0
+    path = output / name
+    tree = read_xml(path)
+    root = tree.getroot()
+    removed = 0
+    for node in root.findall(f"{{{NS}}}url"):
+        for link in list(node.findall(f"{{{XHTML}}}link")):
+            if (link.attrib.get("href") or "").strip() in dropped:
+                node.remove(link)
+                removed += 1
     if removed:
         tree.write(path, encoding="utf-8", xml_declaration=True)
     return removed
@@ -190,9 +222,17 @@ def validate_and_rewrite(output: Path) -> None:
     for lang, suffix in old_suffixes.items():
         os.replace(output / suffix, output / new_names[lang])
 
-    dropped = sum(drop_noindex(output, new_names[lang], prefix) for lang in LANGUAGES)
+    dropped: set[str] = set()
+    for lang in LANGUAGES:
+        dropped |= drop_noindex(output, new_names[lang], prefix)
     if dropped:
-        print(f"  ✂️  أُسقط {dropped} رابطًا يحمل noindex من الخرائط")
+        print(f"  ✂️  أُسقط {len(dropped)} رابطًا يحمل noindex من الخرائط")
+    unlinked = sum(
+        strip_dangling_alternates(output, new_names[lang], dropped)
+        for lang in LANGUAGES
+    )
+    if unlinked:
+        print(f"  ✂️  مُسح {unlinked} hreflang يشير إلى رابط مُسقَط")
 
     descriptor, temporary_name = tempfile.mkstemp(
         prefix=".sitemap-index-", suffix=".xml", dir=output,

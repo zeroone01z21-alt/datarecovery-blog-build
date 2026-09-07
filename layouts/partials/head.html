@@ -57,16 +57,33 @@
 {{- end }}
 <link rel="canonical" href="{{ .Permalink }}">
 
+{{/* شريك ترجمة فارغ لا يُعلَن بديلًا: صفحته noindex، وإعلانها في hreflang
+     إشارة متناقضة — «افهرس هذه» و«لا تفهرس تلك» في عنقود واحد. والقطع من
+     الطرفين معًا كي تبقى العلاقة متبادلة كما يفرض tools/check_seo.py.
+
+     ظهرت الحاجة في 2026-09-07 مع أول مقال يُنشر بالعربية وحدها في تصنيف بلا
+     مقابل إنجليزي: صفحة التصنيف الإنجليزية فارغة وnoindex، والعربية عامرة.
+     وتتكرر مع كل تصنيف يبدأ بمقال أحادي اللغة. */}}
+{{- $pair := not $emptySection }}
+{{- range .Translations }}
+  {{- if and (or .IsHome (eq .Kind "section") (eq .Kind "term")) (eq (len .RegularPagesRecursive) 0) }}
+    {{- $pair = false }}
+  {{- end }}
+{{- end }}
 {{/* الصفحة الحالية دائمًا hreflang ذاتي، حتى لو كان المقال بلغة واحدة فقط. */}}
 <link rel="alternate" hreflang="{{ .Lang }}" href="{{ .Permalink }}">
+{{- if $pair }}
 {{- range .Translations }}
 <link rel="alternate" hreflang="{{ .Lang }}" href="{{ .Permalink }}">
+{{- end }}
 {{- end }}
 {{/* ⚠️ العربية هي لغة الجذر هنا (‏/blog/‏ بلا بادئة) والإنجليزية في /blog/en/‏ —
      عكس المرجع تمامًا. لذلك x-default يشير إلى العربية، مطابقةً للموقع الذي
      يجعل x-default جذر النطاق. عكسُه يرسل زائرًا مجهول اللغة إلى النسخة
      الفرعية ويترك الجذر بلا مرشَّح افتراضي. */}}
 {{- $ar := "" }}{{ range .AllTranslations }}{{ if eq .Lang "ar" }}{{ $ar = .Permalink }}{{ end }}{{ end }}
+{{/* عنقود مقطوع: x-default لا يشير إلى صفحة خارج بدائل هذه الصفحة. */}}
+{{- if not $pair }}{{ $ar = cond (eq .Lang "ar") .Permalink "" }}{{ end }}
 {{- if $ar }}
 <link rel="alternate" hreflang="x-default" href="{{ $ar }}">
 {{- end }}
