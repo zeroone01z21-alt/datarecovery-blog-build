@@ -144,15 +144,28 @@ def check_file(path, schema, problems):
             # Hugo يرفض تاريخًا بلا ثوانٍ أو منطقة زمنية ويُسقط البناء كله
             # برسالة إنجليزية لا يفهمها الكاتب. أُمسكها هنا برسالة بلغته.
             raw = str(val).strip().strip('"\'')
+            import datetime as _dt
+            moment = None
             try:
-                import datetime as _dt
-                _dt.datetime.fromisoformat(raw)
+                moment = _dt.datetime.fromisoformat(raw)
                 if len(raw) < 19 or ("+" not in raw and "Z" not in raw[10:]):
                     raise ValueError
             except Exception:
+                moment = None
                 bad(f"التاريخ «{raw}» بصيغة لا يقبلها النظام. "
                     "الصيغة الصحيحة مثل 2026-08-07T20:22:00+03:00 — "
                     "أعد اختياره من التقويم في اللوحة.")
+
+            # تاريخ في المستقبل = مقال يختفي بلا رسالة. Hugo يستبعده
+            # (buildFuture غير مفعّل ولا --buildFuture في build.yml)، والبناء
+            # ينجح ويُنشر، فيرى الكاتب «تم النشر» ولا يجد مقاله. ولا بناء
+            # مجدولًا يلتقطه بعد مرور الموعد: build.yml يعمل بـ
+            # workflow_dispatch وحده. فالمقال لا يظهر أبدًا ما لم يُنشر ثانية.
+            if moment is not None and not fm.get("draft"):
+                if moment > _dt.datetime.now(_dt.timezone.utc):
+                    bad(f"تاريخ النشر «{raw}» في المستقبل، والمقال لن يظهر في "
+                        "الموقع — لا الآن ولا بعد مرور الموعد. اضبطه على وقت "
+                        "مضى من التقويم في اللوحة.")
 
         elif rule["type"] == "list":
             if len(val) < rule.get("min_items", 0):
@@ -201,12 +214,22 @@ def check_images(directory, schema, problems):
 
 
 def check_bundle_consistency(directory, problems):
-    """الـslug والتصنيفات والأرشفة عقد واحد بين ترجمات الحزمة."""
+    """الـslug والتصنيفات والأرشفة عقد واحد بين ترجمات الحزمة.
+
+    تعمل على شكلَي المحتوى: مصدر الكاتب يضع الحزم في ``content/blog/``، و
+    ``prepare_content.py`` يسطّحها إلى جذر ``content/`` قبل البناء. البحث عن
+    ``blog/`` وحده كان يُخرج الدالة صامتة في CI — وهناك بالضبط تُشغَّل، على
+    النسخة المجهَّزة لا على المصدر — فلم يُفحص هذا العقد ولا مرة منذ كُتب.
+
+    2026-09-06: مقال جديد حمل slug مقال منشور. مرّ من البوّابة، فطمسه Hugo
+    فوق المقال القديم على الرابط نفسه بلا تحذير — Hugo لا يُخطئ على تكرار
+    الروابط — وسقط البناء أخيرًا عند tools/normalize_sitemaps.py برسالة
+    «الخريطة تحوي روابط مكررة» لا تدل على المقال ولا على السبب.
+    """
     blog = os.path.join(directory, "blog")
-    if not os.path.isdir(blog):
-        return
-    for name in sorted(os.listdir(blog)):
-        bundle = os.path.join(blog, name)
+    root = blog if os.path.isdir(blog) else directory
+    for name in sorted(os.listdir(root)):
+        bundle = os.path.join(root, name)
         if not os.path.isdir(bundle) or name.startswith("."):
             continue
         records = []
