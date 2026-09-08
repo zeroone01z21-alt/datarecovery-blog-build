@@ -170,14 +170,18 @@ def check_file(path, schema, problems):
             # ينجح ويُنشر، فيرى الكاتب «تم النشر» ولا يجد مقاله. ولا بناء
             # مجدولًا يلتقطه بعد مرور الموعد: build.yml يعمل بـ
             # workflow_dispatch وحده. فالمقال لا يظهر أبدًا ما لم يُنشر ثانية.
-            # انحراف الساعة أو المنطقة الزمنية (حتى 24 ساعة) يصحّحه
-            # tools/prepare_content.py قبل هذا الفحص، فما يصل إلى هنا مستقبليًّا
-            # هو خطأ حقيقي في التاريخ — سنة خاطئة مثلًا — يستحق عين إنسان.
+            # انحراف الساعة أو المنطقة الزمنية يصحّحه tools/prepare_content.py
+            # قبل هذا الفحص، وحدّه هناك 24 ساعة. فالعتبة هنا هي العتبة نفسها
+            # كي يتّفق المكوّنان بالبناء لا بالمصادفة: ما دون اليوم يُصحَّح
+            # صامتًا مع إعلان في السجلّ، وما فوقه خطأ تاريخ حقيقي — سنة أو
+            # شهر خاطئ — يستحق عين إنسان. ولو ضاقت العتبة هنا وحدها لظهرت
+            # للكاتب رسالة تنفي ما يفعله الأنبوب فعلًا.
             if moment is not None and not fm.get("draft"):
-                if moment > _dt.datetime.now(_dt.timezone.utc):
-                    bad(f"تاريخ النشر «{raw}» في المستقبل بأكثر من يوم، والمقال "
-                        "لن يظهر في الموقع إطلاقًا. تأكّد من السنة والشهر في "
-                        "التقويم داخل اللوحة.")
+                skew = moment - _dt.datetime.now(_dt.timezone.utc)
+                if skew > _dt.timedelta(hours=24):
+                    bad(f"تاريخ النشر «{raw}» في المستقبل بأكثر من يوم "
+                        f"({skew.days} يومًا)، والمقال لن يظهر في الموقع "
+                        "إطلاقًا. تأكّد من السنة والشهر في التقويم داخل اللوحة.")
 
         elif rule["type"] == "list":
             if len(val) < rule.get("min_items", 0):
@@ -240,6 +244,7 @@ def check_bundle_consistency(directory, problems):
     """
     blog = os.path.join(directory, "blog")
     root = blog if os.path.isdir(blog) else directory
+    siblings = {n for n in os.listdir(root) if os.path.isdir(os.path.join(root, n))}
     for name in sorted(os.listdir(root)):
         bundle = os.path.join(root, name)
         if not os.path.isdir(bundle) or name.startswith("."):
@@ -262,8 +267,19 @@ def check_bundle_consistency(directory, problems):
             "categories": sorted(first.get("categories", [])),
         }
         if expected["slug"] != name:
-            problems.append((display(first_path),
-                             f"قيمة slug يجب أن تطابق اسم مجلد الحزمة «{name}»."))
+            # لوحة Sveltia تبني مسار الحزمة من الـslug نفسه. فإن كتب الكاتب
+            # رابطًا مستعملًا، لا تكتب فوق المقال القديم بل تُلحق «-رقم» باسم
+            # المجلد وحده وتترك الحقل كما كُتب — بلا تحذير. هذه بصمة التصادم،
+            # ونسمّيه للكاتب بها بدل مطالبته بمطابقة اسم مجلد لا يراه أصلًا.
+            stem = re.sub(r"-\d+$", "", name)
+            if stem != name and expected["slug"] == stem and stem in siblings:
+                problems.append((display(first_path),
+                                 f"الرابط «{stem}» مستعمل في مقال آخر. "
+                                 "افتح حقل «الرابط القصير بالإنجليزية» واختر "
+                                 "رابطًا مختلفًا، ثم احفظ."))
+            else:
+                problems.append((display(first_path),
+                                 f"قيمة slug يجب أن تطابق اسم مجلد الحزمة «{name}»."))
         for path, fm in records[1:]:
             actual = {
                 "slug": fm.get("slug"),
