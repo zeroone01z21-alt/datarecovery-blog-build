@@ -87,6 +87,15 @@ collections:
         maxlength: 160
         widget: "string"
       -
+        name: "focus_keyword"
+        label: "الكلمة المفتاحية المستهدفة"
+        required: true
+        i18n: true
+        hint: "الاستعلام الذي تريد أن يجدك القارئ به، بلغة المقال نفسه. يُوقف النشر إن تُرك فارغًا أو استعمله مقال آخر — مقالان على كلمة واحدة يتنافسان ويخسران معًا. وغيابه عن العنوان أو الفقرة الأولى ملاحظة في سجلّ النشر لا مانع."
+        minlength: 3
+        maxlength: 60
+        widget: "string"
+      -
         name: "slug"
         label: "الرابط القصير بالإنجليزية"
         required: true

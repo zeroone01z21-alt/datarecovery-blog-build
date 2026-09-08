@@ -229,6 +229,99 @@ def check_images(directory, schema, problems):
                                      .replace("{actual}", f"{size/1024:.0f} كيلوبايت")))
 
 
+# ── الكلمة المفتاحية ────────────────────────────────────────────────────
+# التطبيع شرط لا ترف: «استعادة البيانات» و«إستعادة البيانات» استعلام واحد عند
+# القارئ، والفرق همزةُ وصلٍ لا يراها. وبلا تطبيع يفشل كل تطابق تقريبًا فتصير
+# الميزة إزعاجًا يتجاهله الكاتب.
+ARABIC_DIACRITICS = re.compile(r"[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED\u0640]")
+NON_WORD = re.compile(r"[^\w\u0600-\u06FF]+", re.U)
+
+
+def normalize_keyword(value):
+    """يوحّد النصّ للمقارنة: تشكيل، وألف، وياء، وتاء مربوطة، وفراغات."""
+    text = ARABIC_DIACRITICS.sub("", str(value)).casefold()
+    for source, target in (("أإآٱ", "ا"), ("ى", "ي"), ("ة", "ه"), ("ؤ", "و"), ("ئ", "ي")):
+        for ch in source:
+            text = text.replace(ch, target)
+    return NON_WORD.sub(" ", text).strip()
+
+
+def keyword_in(haystack, keyword):
+    return keyword and keyword in normalize_keyword(haystack)
+
+
+def check_focus_keywords(directory, problems, notes):
+    """يوقف على الأخطاء الموضوعية، ويلاحظ ما عداها بلا إيقاف.
+
+    الإيقاف محصور في اثنتين: حقل فارغ، وكلمة يستعملها مقال آخر منشور بلغته
+    نفسها. الثانية هي التنافس الداخلي (cannibalization): مقالان يستهدفان
+    استعلامًا واحدًا يتقاسمان إشاراته فيهبطان معًا، وهو ضرر صامت لا يظهر في
+    أي فحص تقني — لذلك يستحق الإيقاف وحده دون بقية القواعد.
+
+    وما عداه إرشاد: غيابها عن العنوان أو الوصف أو الفقرة الأولى أو عناوين H2،
+    وكثافة تتجاوز 3% وهي حدّ الحشو المتعارف عليه. هذه أحكام تحريرية يقدّرها
+    الكاتب بسياق مقاله، وإيقاف النشر عليها يحوّل الأداة إلى عائق.
+    """
+    blog = os.path.join(directory, "blog")
+    root = blog if os.path.isdir(blog) else directory
+    if not os.path.isdir(root):
+        return
+    seen = {}
+    for name in sorted(os.listdir(root)):
+        bundle = os.path.join(root, name)
+        if not os.path.isdir(bundle) or name.startswith("."):
+            continue
+        for filename in sorted(os.listdir(bundle)):
+            if not (filename.startswith("index.") and filename.endswith(".md")):
+                continue
+            path = os.path.join(bundle, filename)
+            with open(path, encoding="utf-8") as handle:
+                fm, body = parse_front_matter(handle.read())
+            if fm is None or fm.get("draft"):
+                continue
+            raw = str(fm.get("focus_keyword") or "").strip()
+            if not raw:
+                continue  # الحقل المطلوب يمسكه check_file برسالته
+            lang = filename[len("index."):-len(".md")]
+            key = normalize_keyword(raw)
+
+            owner = seen.get((lang, key))
+            if owner:
+                # الرسالة تسمّي الطرفين لأن أيّهما يُعلَّق عليه الخطأ يحدّده
+                # ترتيب المجلدات لا خطأ الكاتب. من يفتح أيًّا منهما يعرف
+                # المقال الآخر ويقرّر بنفسه أيّهما يغيّر كلمته.
+                problems.append((display(path),
+                                 f"الكلمة المفتاحية «{raw}» مستهدَفة في مقالين: "
+                                 f"«{owner}» و«{name}». مقالان على استعلام واحد "
+                                 "يتنافسان ويخسران معًا — غيّر كلمة أحدهما."))
+            else:
+                seen[(lang, key)] = name
+
+            where = []
+            if not keyword_in(fm.get("title", ""), key):
+                where.append("العنوان")
+            if not keyword_in(fm.get("description", ""), key):
+                where.append("الوصف")
+            paragraphs = [p for p in body.strip().split("\n\n") if p.strip()]
+            if not (paragraphs and keyword_in(paragraphs[0], key)):
+                where.append("الفقرة الأولى")
+            headings = " ".join(re.findall(r"^##+\s+(.*)$", body, re.M))
+            if not keyword_in(headings, key):
+                where.append("العناوين الفرعية")
+            if where:
+                notes.append(f"{name}/{filename}: «{raw}» غائبة عن " + " و".join(where))
+
+            words = normalize_keyword(body).split()
+            span = len(key.split())
+            if words and span:
+                hits = sum(1 for i in range(len(words) - span + 1)
+                           if " ".join(words[i:i + span]) == key)
+                density = hits * span / len(words) * 100
+                if density > 3:
+                    notes.append(f"{name}/{filename}: كثافة «{raw}» {density:.1f}% "
+                                 "وهي فوق حدّ الحشو 3% — جوجل يقرأها تلاعبًا")
+
+
 def check_bundle_consistency(directory, problems):
     """الـslug والتصنيفات والأرشفة عقد واحد بين ترجمات الحزمة.
 
@@ -303,6 +396,10 @@ def main():
 
     schema = load_schema()
     problems = []
+    # قناة ثانية إلى جانب problems: ملاحظات تُطبع ولا تُوقف. بلا فصلها كان
+    # الخيار الوحيد بين إسقاط البناء وبين الصمت — وأحكام التحرير لا تحتمل
+    # الأول ولا تستحق الثاني.
+    notes = []
     count = 0
     for base, dirs, files in os.walk(directory):
         dirs[:] = [d for d in dirs if not d.startswith(".")]
@@ -311,6 +408,7 @@ def main():
                 count += 1
                 check_file(os.path.join(base, f), schema, problems)
     check_bundle_consistency(directory, problems)
+    check_focus_keywords(directory, problems, notes)
     check_images(directory, schema, problems)
 
     if as_json:
@@ -318,8 +416,14 @@ def main():
                          ensure_ascii=False, indent=2))
         return 1 if problems else 0
 
+    for note in notes:
+        print(f"  ⚠️  {note}")
+    if notes:
+        print()
+
     if not problems:
-        print(f"  ✅ {count} ملف — لا مشاكل")
+        print(f"  ✅ {count} ملف — لا مشاكل"
+              + (f" · {len(notes)} ملاحظة كلمة مفتاحية" if notes else ""))
         return 0
 
     print(f"  ❌ {len(problems)} مشكلة في {count} ملف\n")
