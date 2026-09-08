@@ -145,14 +145,23 @@ def check_file(path, schema, problems):
             # برسالة إنجليزية لا يفهمها الكاتب. أُمسكها هنا برسالة بلغته.
             raw = str(val).strip().strip('"\'')
             import datetime as _dt
+            # التحقّق بالتحليل لا بتفتيش النصّ. الشرط القديم كان يبحث عن «+»
+            # ليتأكّد من وجود منطقة زمنية، فيرفض كل إزاحة سالبة — و
+            # 2026-09-08T08:21:00-07:00 صيغة ISO سليمة يقبلها Hugo. أوقف ذلك
+            # النشر في 2026-09-08 حين كتبت اللوحة منطقة متصفّح الكاتب.
+            # tzinfo هو الشرط الحقيقي، والباقي يتكفّل به fromisoformat.
             moment = None
             try:
-                moment = _dt.datetime.fromisoformat(raw)
-                if len(raw) < 19 or ("+" not in raw and "Z" not in raw[10:]):
-                    raise ValueError
+                moment = _dt.datetime.fromisoformat(raw.replace("Z", "+00:00"))
             except Exception:
                 moment = None
-                bad(f"التاريخ «{raw}» بصيغة لا يقبلها النظام. "
+            if moment is None:
+                bad(f"التاريخ «{raw}» ليس تاريخًا صالحًا. "
+                    "الصيغة الصحيحة مثل 2026-08-07T20:22:00+03:00 — "
+                    "أعد اختياره من التقويم في اللوحة.")
+            elif moment.tzinfo is None:
+                moment = None
+                bad(f"التاريخ «{raw}» بلا منطقة زمنية. "
                     "الصيغة الصحيحة مثل 2026-08-07T20:22:00+03:00 — "
                     "أعد اختياره من التقويم في اللوحة.")
 
@@ -161,11 +170,14 @@ def check_file(path, schema, problems):
             # ينجح ويُنشر، فيرى الكاتب «تم النشر» ولا يجد مقاله. ولا بناء
             # مجدولًا يلتقطه بعد مرور الموعد: build.yml يعمل بـ
             # workflow_dispatch وحده. فالمقال لا يظهر أبدًا ما لم يُنشر ثانية.
+            # انحراف الساعة أو المنطقة الزمنية (حتى 24 ساعة) يصحّحه
+            # tools/prepare_content.py قبل هذا الفحص، فما يصل إلى هنا مستقبليًّا
+            # هو خطأ حقيقي في التاريخ — سنة خاطئة مثلًا — يستحق عين إنسان.
             if moment is not None and not fm.get("draft"):
                 if moment > _dt.datetime.now(_dt.timezone.utc):
-                    bad(f"تاريخ النشر «{raw}» في المستقبل، والمقال لن يظهر في "
-                        "الموقع — لا الآن ولا بعد مرور الموعد. اضبطه على وقت "
-                        "مضى من التقويم في اللوحة.")
+                    bad(f"تاريخ النشر «{raw}» في المستقبل بأكثر من يوم، والمقال "
+                        "لن يظهر في الموقع إطلاقًا. تأكّد من السنة والشهر في "
+                        "التقويم داخل اللوحة.")
 
         elif rule["type"] == "list":
             if len(val) < rule.get("min_items", 0):

@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import datetime
 import os
 import re
 import shutil
@@ -58,6 +59,69 @@ def bundle_is_archived(bundle: Path) -> bool:
     if len(states) != 1:
         raise PrepareError(f"حالة archived مختلفة بين ترجمات الحزمة: {bundle.name}")
     return states == {True}
+
+
+RIYADH = datetime.timezone(datetime.timedelta(hours=3))
+DATE_LINE = re.compile(r'^(?P<key>date|lastmod):[ \t]*(?P<q>["\']?)(?P<val>[^"\'\n]+)(?P=q)[ \t]*$',
+                       re.M)
+SKEW_LIMIT = datetime.timedelta(hours=24)
+
+
+def normalize_dates(bundle: Path) -> list[str]:
+    """يوحّد تواريخ الحزمة على توقيت الرياض ويصحّح انحراف ساعة الكاتب.
+
+    التاريخ في هذا النظام تُنتجه لوحة Sveltia من ساعة متصفّح الكاتب ومنطقته.
+    هذا أوقف النشر أربع مرات بأعراض مختلفة: صيغة بلا ثوانٍ (2026-08-07)، ثم
+    إزاحة بلا نقطتين +0300 (2026-08-18 و2026-09-06)، ثم منطقة سالبة -07:00
+    مع ساعة متقدّمة سبع ساعات (2026-09-08). العلّة واحدة في كل مرة: لحظة
+    النشر تأتي من جهاز لا نتحكّم به، ويحكم عليها فحص هشّ.
+
+    فالعلاج هنا لا هناك. تُحوَّل كل لحظة إلى +03:00 — وهي المنطقة نفسها في
+    hugo.toml — فيصير الملف المنشور موحّدًا مهما كان جهاز الكاتب. وإن كانت
+    اللحظة في المستقبل بما لا يتجاوز 24 ساعة فهي انحراف ساعة أو منطقة، لا
+    جدولة: لا جدولة في هذا النظام أصلًا، فـbuild.yml يعمل بـworkflow_dispatch
+    وحده ولا شيء يلتقط المقال بعد مرور موعده. تُضبط على لحظة البناء ويُعلن
+    ذلك في السجلّ. وما تجاوز 24 ساعة يُترك ليوقفه check_content: ذاك خطأ
+    تاريخ حقيقي يستحق عين إنسان.
+
+    والتعديل يجري على النسخة المجهَّزة لا على مستودع الكاتب، فلا يكتب النظام
+    فوق ما كتبه.
+    """
+    notes: list[str] = []
+    now = datetime.datetime.now(RIYADH)
+    for path in sorted(bundle.glob("index.*.md")):
+        text = path.read_text(encoding="utf-8")
+        head_end = text.find("\n---", 4)
+        if not text.startswith("---") or head_end == -1:
+            continue
+        head, rest = text[:head_end], text[head_end:]
+        changed = False
+
+        def fix(match: "re.Match[str]") -> str:
+            nonlocal changed
+            raw = match.group("val").strip()
+            try:
+                moment = datetime.datetime.fromisoformat(raw.replace("Z", "+00:00"))
+            except ValueError:
+                return match.group(0)
+            if moment.tzinfo is None:
+                moment = moment.replace(tzinfo=RIYADH)
+            local = moment.astimezone(RIYADH)
+            if now < local <= now + SKEW_LIMIT:
+                notes.append(f"{bundle.name}/{path.name}: {match.group('key')} كان "
+                             f"{local.isoformat()} — أي في المستقبل، فضُبط على لحظة البناء")
+                local = now.replace(microsecond=0)
+            fixed = local.isoformat()
+            if fixed == raw:
+                return match.group(0)
+            changed = True
+            quote = match.group("q") or '"'
+            return f'{match.group("key")}: {quote}{fixed}{quote}'
+
+        head = DATE_LINE.sub(fix, head)
+        if changed:
+            path.write_text(head + rest, encoding="utf-8")
+    return notes
 
 
 ATX_H1 = re.compile(r"^#[ \t]+(?P<text>\S.*?)[ \t]*#*[ \t]*$")
@@ -162,6 +226,7 @@ def prepare(source: Path) -> tuple[int, int, list[str]]:
                     archived += 1
                     continue
                 shutil.copytree(bundle, staging / bundle.name)
+                notes.extend(normalize_dates(staging / bundle.name))
                 notes.extend(demote_body_h1(staging / bundle.name))
                 copied += 1
 
