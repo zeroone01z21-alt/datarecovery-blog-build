@@ -40,8 +40,16 @@ jobs:
       - name: التحقق من بصمات الضوابط
         run: python3 tools/check_controls.py
 
+      # الترتيب هنا هو ترتيب build.yml نفسه: التجهيز أولًا ثم التدقيق على
+      # ناتجه. كان معكوسًا، فيُدقَّق المحتوى الخام بما فيه الحزم المؤرشفة —
+      # وهي حزم لا تُبنى ولا تُنشر. النتيجة أن مقالًا تجريبيًّا مؤرشفًا كان
+      # يمنع نشر لوحة الكاتب إلى الأبد (2026-09-08)، بينما يمرّ النشر الحقيقي
+      # بلا اعتراض. بوّابتان تحكمان على محتويَين مختلفين ليستا بوّابة واحدة.
+      - name: تجهيز المحتوى دون المؤرشف
+        run: python3 tools/prepare_content.py .content-src/content
+
       - name: تدقيق المحتوى
-        run: python3 tools/check_content.py .content-src/content
+        run: python3 tools/check_content.py content
 
       - name: إيقاف النشر إن لم يكتمل OAuth
         run: |
@@ -85,9 +93,6 @@ jobs:
           tar -xzf "$archive" hugo
           sudo mv hugo /usr/local/bin/
           hugo version
-
-      - name: تجهيز المحتوى دون المؤرشف
-        run: python3 tools/prepare_content.py .content-src/content
 
       - name: بناء المعاينة مع المسودات
         run: |
