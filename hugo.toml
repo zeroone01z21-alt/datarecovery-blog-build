@@ -86,7 +86,7 @@ disableDefaultSiteRedirect = true
     # وفصلها إلى خاصية ثانية يقطع رحلة الزائر بين المقال وصفحة الخدمة في
     # التقارير.
     #
-    # ولا ga4Id هنا — عمدًا. خاصية GA4 (G-M2GX0NVW5E) مُعرَّفة **كوسم داخل
+    # ولا ga4Id هنا — عمدًا. خاصية GA4 (G-N9DWW17NX7) مُعرَّفة **كوسم داخل
     # حاوية GTM**، تمامًا كما على الموقع، فيُطلَق page_view مرة واحدة. كان
     # هذا المفتاح موجودًا وتقرؤه جزئية تحليلات مضمّنة تنادي gtag('config')
     # وتحمّل gtm.js معًا؛ حُذفت الجزئية في 2026-08-18 لسببين: العدّ المزدوج،
@@ -95,7 +95,7 @@ disableDefaultSiteRedirect = true
     # التحميل الآن من assets/js/analytics.js على الموقع، يشحنه
     # build/emit-chrome.js ضمن site-scripts.html. يبقى gtmId هنا لأن
     # baseof.html يستعمله في بديل <noscript>.
-    gtmId = 'GTM-NVKDG74Z'
+    gtmId = 'GTM-NDWR4XQK'
   logo = 'https://datarecovery-sa.com/assets/img/logo-mark.png'
   # الموقع يشحن صورة مشاركة واحدة للغتين، فالمفتاحان يشيران إليها.
   # نبقي المفتاحين لأن layouts/partials/head.html يختار بينهما حسب اللغة،
