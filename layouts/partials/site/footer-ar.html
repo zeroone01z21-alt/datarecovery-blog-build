@@ -94,6 +94,11 @@
       <div class="footer__legal">
         <span>© <span dir="ltr">2026</span> من الصفر إلى الواحد · جميع الحقوق محفوظة</span>
         <a href="https://datarecovery-sa.com/privacy.html" class="footer__legal-link">سياسة الخصوصية</a>
+        <!-- رابط دائم لتغيير الاختيار أو سحبه. href إلى سياسة الخصوصية لا "#":
+             من يفتحه بلا JavaScript يصل إلى صفحة تشرح الأدوات، ومن يفتحه
+             والسكربت يعمل يُعترض الضغط ويُفتح الشريط. ونصّه يكتبه
+             consent-banner.js بحسب الحالة، فلا يَعِد بسحب موافقة لم تُمنَح. -->
+        <a href="https://datarecovery-sa.com/privacy.html" class="footer__legal-link" data-consent-settings>إعدادات الخصوصية</a>
       </div>
     </div>
   </footer>
