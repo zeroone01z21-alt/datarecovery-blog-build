@@ -31,6 +31,7 @@
      بدل رفع --muted نفسه: الأخير مستعمل فوق خلفيات أغمق حيث نسبته 8.20:1
      ورفعُه هناك يُضعف التدرّج بلا سبب. */
   --muted-on-card: #b5d1d3;    /* 5.76:1 فوق #344b4e */
+  --accent-on-card: #3fd4e2;   /* 5.18:1 فوق #344b4e */
   --line: #1c4547;             /* border-dark */
   --outer: 100rem;
   /* عرض عمود القراءة.
@@ -266,7 +267,10 @@ html[dir="rtl"] .category-nav ul { justify-content: flex-start; }
 
 .card-cat {
   margin: 0 0 .65rem;
-  color: var(--orange-text);
+  /* --orange-text يعطي 4.50:1 فوق خلفية البطاقة #344b4e — على الحدّ تمامًا،
+     وأدوات القياس تقرؤه 4.49 فيسقط. ولون التصنيف يظهر على البطاقة وحدها،
+     فيُرفع هنا إلى 5.18:1 بلا مساس بالرمز العام المستعمل في مواضع أخرى. */
+  color: var(--accent-on-card, #3fd4e2);
   font-size: .72rem;
   font-weight: 700;
 }
