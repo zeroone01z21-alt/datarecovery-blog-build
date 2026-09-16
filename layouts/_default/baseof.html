@@ -24,11 +24,10 @@
   {{ partial "head.html" . }}
 </head>
 <body{{ if $ar }} class="lang-ar"{{ end }} data-barba="wrapper">
-  {{- /* بديل GTM لمن يعطّل جافاسكربت — كما في صفحات الموقع تمامًا. */ -}}
-  {{- with .Site.Params.gtmId }}
-  <noscript><iframe src="https://www.googletagmanager.com/ns.html?id={{ . }}" height="0" width="0"
-      style="display:none;visibility:hidden"></iframe></noscript>
-  {{- end }}
+  {{- /* لا إطار <noscript> لـGTM — كما في صفحات الموقع تمامًا. بوّابة
+         الموافقة كلها JavaScript، فزائر بلا JavaScript لا يرى الشريط ولا
+         يستطيع القبول، وكان الإطار يُرسل مع ذلك طلبًا إلى googletagmanager
+         يحمل عنوانه ومَرجِعه. حُذف في 2026-09-16 بعد إثباته بمتصفّح حقيقي. */ -}}
   {{- /*
     ترتيب صفحات الموقع حرفيًّا. وحرفيًّا تعني: الهيدر والبرغر والقائمة
     الجانبية **أبناء مباشرون لـ<body>** قبل <main> — هكذا يُخرجها مولّد
