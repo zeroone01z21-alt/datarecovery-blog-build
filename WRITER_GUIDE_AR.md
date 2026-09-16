@@ -52,7 +52,7 @@
 
 - **الأقراص الصلبة** — `hard-drives`
 - **أقراص SSD وNVMe** — `ssd-nvme`
-- **RAID والسيرفرات** — `raid-servers`
+- **مقالات RAID والسيرفرات** — `raid-servers`
 - **فيروس الفدية والتشفير** — `ransomware`
 - **الهواتف وبطاقات الذاكرة** — `phones-and-cards`
 - **النسخ الاحتياطي وحماية البيانات** — `data-protection`

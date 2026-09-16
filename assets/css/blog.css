@@ -26,6 +26,11 @@
   --orange: #12c7d7;           /* اللون المميّز — accent */
   --orange-text: #12c7d7;      /* السماوي يمرّ AA على الأرضية الداكنة */
   --muted: #8fb0b2;            /* muted-dark */
+  /* النصّ الثانوي فوق البطاقة: خلفيتها الفعلية #344b4e لا خلفية الصفحة،
+     فـ--muted يعطي عليها 3.99:1 — دون حدّ 4.5 لنصّ بحجم ‎.75rem. رمز مستقلّ
+     بدل رفع --muted نفسه: الأخير مستعمل فوق خلفيات أغمق حيث نسبته 8.20:1
+     ورفعُه هناك يُضعف التدرّج بلا سبب. */
+  --muted-on-card: #b5d1d3;    /* 5.76:1 فوق #344b4e */
   --line: #1c4547;             /* border-dark */
   --outer: 100rem;
   /* عرض عمود القراءة.
@@ -281,8 +286,8 @@ html[dir="rtl"] .card h2 { letter-spacing: 0; line-height: 1.45; }
 .card h2 a { text-decoration: none; }
 .card h2 a:hover { color: var(--orange-text); }
 
-.card-desc { margin: 0 0 1.25rem; color: var(--muted); font-size: .91rem; }
-.card-meta { margin: auto 0 0; color: var(--muted); font-size: .75rem; }
+.card-desc { margin: 0 0 1.25rem; color: var(--muted-on-card); font-size: .91rem; }
+.card-meta { margin: auto 0 0; color: var(--muted-on-card); font-size: .75rem; }
 .card-meta time,
 .post-meta time { display: inline-block; direction: ltr; unicode-bidi: isolate; }
 
