@@ -4,6 +4,14 @@
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
+    # GTM Preview — نسخة من قاعدة الجذر: RewriteEngine On هنا يُصفّر قواعد
+    # الجذر، فبلاها تأخذ صفحات المدونة الترويسات الصارمة حتى في جلسة معاينة
+    # فينقطع Tag Assistant عند الانتقال إليها. تضبط متغيّرًا فقط، بلا [L] ولا
+    # ترويسات هنا (Header في هذا الملف قد يُسقط المدونة على LiteSpeed).
+    RewriteCond %{QUERY_STRING} (^|&)gtm_debug= [OR]
+    RewriteCond %{HTTP_COOKIE} (^|;)\s*_{1,2}TAG_ASSISTANT=
+    RewriteRule ^ - [E=Z2O_GTM_PREVIEW:1]
+
     # ----------------------------------------------------------------
     #  اسم المضيف القانوني — يُكرَّر هنا عمدًا، وليس تكرارًا زائدًا.
     #
