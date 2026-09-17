@@ -166,7 +166,7 @@ collections:
             label: "SSD & NVMe — أقراص SSD وNVMe"
             value: "ssd-nvme"
           -
-            label: "RAID & Server Articles — مقالات RAID والسيرفرات"
+            label: "RAID & Server Articles — مقالات RAID والخوادم"
             value: "raid-servers"
           -
             label: "Ransomware & Encryption — فيروس الفدية والتشفير"
