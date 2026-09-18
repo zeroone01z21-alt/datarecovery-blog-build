@@ -140,7 +140,7 @@
       {
         "slug": "raid-servers",
         "en": "RAID & Server Articles",
-        "ar": "مقالات RAID والسيرفرات",
+        "ar": "مقالات RAID والخوادم",
         "description_en": "Arrays, rebuilds, and the decisions in the first hour that decide whether the data survives.",
         "description_ar": "المصفوفات وإعادة البناء، والقرارات في الساعة الأولى التي تحدّد إن كانت البيانات ستنجو.",
         "intro_en": "RAID protects uptime, not data. When an array degrades, the most expensive mistakes happen in the first hour: starting a rebuild, reordering disks, or accepting an initialise prompt. These articles explain the common levels in plain terms, what actually happens when a disk drops out, why a rebuild can finish the job the failure started, and what to do instead.",
