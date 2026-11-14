@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """جهّز محتوى Hugo من مستودع التحرير واستبعد الحزم المؤرشفة بالكامل.
 
+وكل تصحيح هنا يجري على النسخة المجهّزة وحدها؛ ملف الكاتب في مستودع المحتوى
+لا يتغيّر: التوقيت، والعناوين الرئيسية المكرّرة، وسطر الجدول الفاصل، وأسماء
+الملفات.
+
 الاستخدام:
     python3 tools/prepare_content.py <content-source>
 
@@ -11,14 +15,16 @@
 from __future__ import annotations
 
 import datetime
+import json
 import os
 import re
 import shutil
 import sys
 import uuid
 from pathlib import Path
+from urllib.parse import unquote
 
-from check_content import parse_front_matter
+from check_content import FRONT, MARKDOWN_IMAGE, parse_front_matter
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -28,6 +34,14 @@ MARKER = ".generated-by-prepare-content"
 
 class PrepareError(RuntimeError):
     pass
+
+
+class BundleProblem(PrepareError):
+    """مشكلة في مقال واحد يصلحها الكاتب، لا في المحتوى كله.
+
+    الرسالة موجّهة للكاتب. في الوضع الصارم (سطر الأوامر والمعاينة) تُرفع
+    كما كانت؛ وبنّاء المدونة (tools/build_blog.py) يسجّلها ويحجز المقال وحده.
+    """
 
 
 def reject_symlinks(source: Path) -> None:
@@ -44,20 +58,30 @@ def reject_symlinks(source: Path) -> None:
 def front_matter(path: Path) -> dict[str, object]:
     try:
         data, _ = parse_front_matter(path.read_text(encoding="utf-8"))
-    except OSError as exc:
-        raise PrepareError(f"تعذّرت قراءة {path}") from exc
+    except (OSError, UnicodeError) as exc:
+        raise BundleProblem(
+            f"تعذّرت قراءة {path.name}. أعد حفظ المقال من اللوحة."
+        ) from exc
     if data is None:
-        raise PrepareError(f"ملف بلا front matter: {path}")
+        raise BundleProblem(
+            f"الملف {path.name} لا يبدأ بكتلة إعدادات بين سطري ---. أعد حفظه من اللوحة."
+        )
     return data
 
 
 def bundle_is_archived(bundle: Path) -> bool:
     indexes = sorted(bundle.glob("index.*.md"))
     if not indexes:
-        raise PrepareError(f"حزمة بلا index.<lang>.md: {bundle}")
+        raise BundleProblem(
+            f"مجلد المقال «{bundle.name}» بلا نصّ (index.<lang>.md) — ربما رُفعت "
+            "صورة ولم يُحفظ المقال. افتحه من اللوحة واحفظه، أو أبلغ المالك."
+        )
     states = {bool(front_matter(path).get("archived", False)) for path in indexes}
     if len(states) != 1:
-        raise PrepareError(f"حالة archived مختلفة بين ترجمات الحزمة: {bundle.name}")
+        raise BundleProblem(
+            "مفتاح «أرشفة المقال» مختلف بين ترجمتي المقال. اجعله متطابقًا في "
+            "اللغتين ثم احفظ."
+        )
     return states == {True}
 
 
@@ -193,7 +217,254 @@ def demote_body_h1(bundle: Path) -> list[str]:
     return notes
 
 
-def prepare(source: Path) -> tuple[int, int, list[str]]:
+# ── الجداول ────────────────────────────────────────────────────────────
+#
+# جدول Markdown يحتاج تحت سطر عناوينه سطرًا فاصلًا (| --- | --- |)، وبدونه
+# يطبعه Hugo فقرةً من الخطوط العمودية. لوحة الكتابة بلا زرّ جدول، والجداول
+# الثلاثة المنشورة حتى 2026-11-14 (حصان طروادة، الفدية في الرياض، الفرق بين
+# الهجمات والاختراق) كلها بلا هذا السطر منذ أول حفظ: على الموقع الحي ظهرت
+# نصًّا تتخلّله خطوط |.
+#
+# نضيفه تحت السطر الأول من كل كتلة أسطر تبدأ وتنتهي بـ|، إن تساوى عدد خانات
+# سطرَيها الأوّلين (اثنتان فأكثر). ما داخل كتل الشيفرة لا يُمسّ. والإصلاح على
+# النسخة المجهّزة وحدها، كالتوقيت؛ نُقل من مدونة zero2one.sa (2026-10-22).
+#
+# وزيادة هنا لا في الأصل: سطر | وحيد بخانة واحدة يليه جدول (بعد سطر فارغ أو
+# أكثر) هو عنوان الجدول — خلية مدموجة فوق الجدول في المستند الذي نُسخ منه.
+# مقال «حصان طروادة» فيه «| ملخص أنواع فيروسات حصان طروادة |». يبقى بلا سطر
+# فاصل نصًّا بخطّين عموديين فوق جدول سليم، فيصير سطرًا عريضًا بنصّه نفسه.
+TABLE_ROW = re.compile(r"^ {0,3}\|.*\|[ \t\r]*$")
+TABLE_DELIMITER = re.compile(r"^ {0,3}\|?[ \t]*:?-+:?[ \t]*(\|[ \t]*:?-+:?[ \t]*)*\|?[ \t\r]*$")
+CODE_FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
+UNESCAPED_PIPE = re.compile(r"(?<!\\)\|")
+
+
+def table_cells(row: str) -> int:
+    return len(UNESCAPED_PIPE.split(row.strip()[1:-1]))
+
+
+def table_follows(lines: list[str], start: int) -> bool:
+    """هل يبدأ جدول حقيقي (سطران فأكثر، خانتان فأكثر) بعد أسطر فارغة من start؟"""
+    i = start
+    while i < len(lines) and not lines[i].strip():
+        i += 1
+    if i == start:
+        return False
+    end = i
+    while end < len(lines) and TABLE_ROW.match(lines[end]):
+        end += 1
+    return end - i >= 2 and table_cells(lines[i]) >= 2
+
+
+def title_row_text(row: str) -> str:
+    """نصّ خانة العنوان بلا خطوطها ولا تعريضها، ليُكتب سطرًا عريضًا واحدًا."""
+    text = row.strip()[1:-1].strip()
+    if len(text) > 4 and text.startswith("**") and text.endswith("**"):
+        text = text[2:-2].strip()
+    return text
+
+
+def repair_tables(index: Path) -> list[dict[str, int]]:
+    """يضيف السطر الفاصل لجدول بلا فاصل. يعيد ما أُصلح (السطر وعدد الخانات).
+
+    سطر العنوان المنفرد فوق جدول يُسجَّل بـ ``columns`` = 0.
+    """
+    text = index.read_text(encoding="utf-8")
+    front = FRONT.match(text)
+    head, body = (text[:front.end()], text[front.end():]) if front else ("", text)
+    offset = head.count("\n")
+    lines = body.split("\n")
+    out: list[str] = []
+    changes: list[dict[str, int]] = []
+    fence = ""
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        opening = CODE_FENCE.match(line)
+        if fence:
+            if opening and opening.group(1)[0] == fence[0] and len(opening.group(1)) >= len(fence):
+                fence = ""
+            out.append(line)
+            i += 1
+            continue
+        if opening:
+            fence = opening.group(1)
+            out.append(line)
+            i += 1
+            continue
+        end = i
+        while end < len(lines) and TABLE_ROW.match(lines[end]):
+            end += 1
+        block = lines[i:end]
+        if (len(block) >= 2 and not TABLE_DELIMITER.match(block[1])
+                and table_cells(block[0]) >= 2 and table_cells(block[0]) == table_cells(block[1])):
+            columns = table_cells(block[0])
+            out.extend([block[0], "|" + " --- |" * columns, *block[1:]])
+            changes.append({"line": offset + i + 1, "columns": columns})
+            i = end
+            continue
+        if (len(block) == 1 and table_cells(block[0]) == 1 and title_row_text(block[0])
+                and table_follows(lines, end)):
+            out.append(f"**{title_row_text(block[0])}**")
+            changes.append({"line": offset + i + 1, "columns": 0})
+            i = end
+            continue
+        if block:
+            out.extend(block)
+            i = end
+            continue
+        out.append(line)
+        i += 1
+    if changes:
+        index.write_text(head + "\n".join(out), encoding="utf-8")
+    return changes
+
+
+# ── أسماء الملفات ──────────────────────────────────────────────────────
+#
+# قاعدة الأسماء في controls/schema.json (حروف إنجليزية صغيرة وأرقام وشرطات)
+# كانت توقف النشر كله إن خالفها ملف واحد: صورة باسم عربي أو فيه مسافات تحوّلها
+# اللوحة أحيانًا إلى «_.webp»، فيقف كل شيء بسبب اسم لا يراه القارئ.
+#
+# الاسم شأن تقني لا تحريري، فيُصلَح هنا تلقائيًّا: يُعاد تسمية الملف في
+# النسخة المجهّزة، وتُحدَّث إشارات المقال إليه (صورة المشاركة وصور النصّ).
+# ملف الكاتب في مستودع المحتوى لا يتغيّر. نُقل من مدونة zero2one.sa (2026-11-14).
+SAFE_NAME = re.compile(r"^[a-z0-9][a-z0-9._-]{0,79}$")   # = filenames.pattern في المخطط
+FEATURED_LINE = re.compile(r"(?m)^(featured_image:[ \t]*)([\"']?)([^\"'\n]*?)\2[ \t]*$")
+
+
+def safe_name(name: str, taken: set[str]) -> str:
+    stem, dot, ext = name.rpartition(".")
+    if not dot:
+        stem, ext = name, ""
+    ext = re.sub(r"[^a-z0-9]", "", ext.lower())[:10]
+    stem = re.sub(r"[^a-z0-9._-]+", "-", stem.lower())
+    stem = re.sub(r"[-_.]{2,}", "-", stem).strip("-_.")
+    stem = (stem or "image")[:60].strip("-_.") or "image"
+    candidate = f"{stem}.{ext}" if ext else stem
+    number = 2
+    while candidate in taken:
+        candidate = f"{stem}-{number}.{ext}" if ext else f"{stem}-{number}"
+        number += 1
+    return candidate
+
+
+def rewrite_references(index: Path, renamed: dict[str, str]) -> None:
+    """يحدّث صورة المشاركة وصور النصّ التي تشير إلى اسم قديم بالضبط."""
+    text = index.read_text(encoding="utf-8")
+    front = FRONT.match(text)
+    head, body = (text[:front.end()], text[front.end():]) if front else ("", text)
+
+    def featured(match: "re.Match[str]") -> str:
+        new = renamed.get(match.group(3).strip()) or renamed.get(unquote(match.group(3).strip()))
+        return f"{match.group(1)}{match.group(2)}{new}{match.group(2)}" if new else match.group(0)
+
+    def image(match: "re.Match[str]") -> str:
+        target = match.group(1) or match.group(2)
+        new = renamed.get(target) or renamed.get(unquote(target))
+        if not new:
+            return match.group(0)
+        start = match.start(1) if match.group(1) is not None else match.start(2)
+        end = match.end(1) if match.group(1) is not None else match.end(2)
+        whole = match.group(0)
+        return whole[:start - match.start()] + new + whole[end - match.start():]
+
+    updated = FEATURED_LINE.sub(featured, head) + MARKDOWN_IMAGE.sub(image, body)
+    if updated != text:
+        index.write_text(updated, encoding="utf-8")
+
+
+def normalise_file_names(bundle: Path) -> list[dict[str, str]]:
+    """يعيد تسمية كل ملف بالحزمة اسمه غير مقبول. يعيد ما تغيّر (قبل/بعد)."""
+    files = [item for item in sorted(bundle.iterdir())
+             if item.is_file() and not item.name.startswith(("index.", "."))]
+    taken = {item.name for item in files if SAFE_NAME.match(item.name)}
+    renamed: dict[str, str] = {}
+    for item in files:
+        if SAFE_NAME.match(item.name):
+            continue
+        new_name = safe_name(item.name, taken)
+        taken.add(new_name)
+        item.rename(bundle / new_name)
+        renamed[item.name] = new_name
+    if renamed:
+        for index in sorted(bundle.glob("index.*.md")):
+            rewrite_references(index, renamed)
+    return [{"before": old, "after": new} for old, new in renamed.items()]
+
+
+def localise_lone_language_resources(bundle: Path) -> int:
+    """يمنح موارد الحزمة أحاديّة اللغة لاحقةَ تلك اللغة، إن لم تكن الافتراضية.
+
+    ‏Hugo ينسب المورد الذي لا يحمل لاحقة لغة إلى اللغة الافتراضية (العربية
+    هنا). مقال إنجليزي وحده — بلا index.ar.md — تبقى صوره بلا صفحة تملكها:
+    صورة النصّ تُسقط البناء، وصورة المشاركة تسقط بصمت إلى صورة الموقع. لم
+    يحدث بعد في هذه المدونة (كل مقالاتها عربية أو ثنائية)، وحدث في مدونة
+    zero2one.sa أول ما نُشر مقال بلغتها غير الافتراضية (2026-09-13).
+
+    والحزمة ثنائية اللغة لا تُمسّ: صفحتها العربية تملك الموارد وتشاركها
+    الإنجليزية، وإضافة لاحقة هناك تكسر المشاركة.
+    """
+    indexes = sorted(bundle.glob("index.*.md"))
+    langs = {path.name.split(".")[1] for path in indexes}
+    default_lang = json.loads(
+        (ROOT / "controls" / "schema.json").read_text(encoding="utf-8")
+    )["languages"]["default"]
+    if default_lang in langs or len(langs) != 1:
+        return 0
+
+    lang = next(iter(langs))
+    known = langs | {"en", "ar"}
+    renamed: dict[str, str] = {}
+    for item in sorted(bundle.iterdir()):
+        if not item.is_file() or item.name.startswith("index."):
+            continue
+        stem, _, ext = item.name.rpartition(".")
+        if not ext or stem.rpartition(".")[2] in known:
+            continue
+        new_name = f"{stem}.{lang}.{ext}"
+        item.rename(bundle / new_name)
+        renamed[item.name] = new_name
+
+    if renamed:
+        for index in indexes:
+            text = index.read_text(encoding="utf-8")
+            for old, new in renamed.items():
+                text = text.replace(old, new)
+            index.write_text(text, encoding="utf-8")
+    return len(renamed)
+
+
+def stage_bundle(bundle: Path, destination: Path) -> dict[str, object]:
+    """ينسخ حزمة إلى مكانها المجهّز ويطبّق تحويلات التجهيز كلها.
+
+    بنّاء المدونة يستدعيها أيضًا لنسخة سابقة من مقال منشور، فتمرّ النسخة
+    السابقة بالتحويلات نفسها حرفيًّا.
+    """
+    shutil.copytree(bundle, destination)
+    names = normalise_file_names(destination)
+    renamed = localise_lone_language_resources(destination)
+    notes = normalize_dates(destination) + demote_body_h1(destination)
+    tables: list[dict[str, object]] = []
+    for index in sorted(destination.glob("index.*.md")):
+        for repair in repair_tables(index):
+            tables.append({"file": index.name, **repair})
+    return {"renamed": renamed, "names": names, "notes": notes, "tables": tables}
+
+
+def prepare(
+    source: Path,
+    *,
+    problems: dict[str, list[str]] | None = None,
+    details: dict[str, dict[str, object]] | None = None,
+) -> tuple[int, int]:
+    """يجهّز content/ من المصدر.
+
+    ``problems``: إن مُرّر، تُسجَّل فيه مشكلات المقال الواحد (BundleProblem)
+    باسم مجلده ويُستبعد ذلك المقال وحده. بلا تمريره تُرفع كما كانت دائمًا.
+    ``details``: يُملأ بما جرى لكل مقال (أرشفة، تواريخ، جداول، أسماء ملفات).
+    مشكلات المحتوى كله (رابط رمزي، صفحات القسم) تُرفع في الحالتين.
+    """
     reject_symlinks(source)
     source = source.resolve()
     if not source.is_dir():
@@ -206,7 +477,6 @@ def prepare(source: Path) -> tuple[int, int, list[str]]:
     previous: Path | None = None
     copied = 0
     archived = 0
-    notes: list[str] = []
     try:
         index_files = sorted(source.glob("_index.*.md"))
         required_indexes = {"_index.en.md", "_index.ar.md"}
@@ -222,12 +492,21 @@ def prepare(source: Path) -> tuple[int, int, list[str]]:
         bundles = source / "blog"
         if bundles.is_dir():
             for bundle in sorted(p for p in bundles.iterdir() if p.is_dir() and not p.name.startswith(".")):
-                if bundle_is_archived(bundle):
-                    archived += 1
+                try:
+                    is_archived = bundle_is_archived(bundle)
+                except BundleProblem as exc:
+                    if problems is None:
+                        raise BundleProblem(f"{bundle.name}: {exc}") from exc
+                    problems.setdefault(bundle.name, []).append(str(exc))
                     continue
-                shutil.copytree(bundle, staging / bundle.name)
-                notes.extend(normalize_dates(staging / bundle.name))
-                notes.extend(demote_body_h1(staging / bundle.name))
+                if is_archived:
+                    archived += 1
+                    if details is not None:
+                        details[bundle.name] = {"archived": True}
+                    continue
+                info = stage_bundle(bundle, staging / bundle.name)
+                if details is not None:
+                    details[bundle.name] = {"archived": False, **info}
                 copied += 1
 
         (staging / MARKER).write_text(
@@ -274,19 +553,37 @@ def prepare(source: Path) -> tuple[int, int, list[str]]:
                 os.replace(previous, DESTINATION)
             except OSError:
                 pass
-    return copied, archived, notes
+    return copied, archived
+
+
+def describe(details: dict[str, dict[str, object]]) -> list[str]:
+    """ما فعله التجهيز بكل مقال، سطرًا سطرًا للسجل."""
+    lines: list[str] = []
+    for name, info in sorted(details.items()):
+        lines.extend(str(note) for note in info.get("notes", []) or [])
+        for repair in info.get("tables", []) or []:
+            if repair["columns"]:
+                lines.append(f"{name}/{repair['file']}: أُضيف السطر الفاصل لجدول في السطر "
+                             f"{repair['line']} ({repair['columns']} خانات)")
+            else:
+                lines.append(f"{name}/{repair['file']}: سطر عنوان الجدول في السطر "
+                             f"{repair['line']} صار سطرًا عريضًا")
+        for fixed in info.get("names", []) or []:
+            lines.append(f"{name}: اسم الملف «{fixed['before']}» صار «{fixed['after']}»")
+    return lines
 
 
 def main() -> int:
     if len(sys.argv) != 2:
         print("  الاستخدام: prepare_content.py <content-source>")
         return 2
+    details: dict[str, dict[str, object]] = {}
     try:
-        copied, archived, notes = prepare(Path(sys.argv[1]))
+        copied, archived = prepare(Path(sys.argv[1]), details=details)
     except PrepareError as exc:
         print(f"  ❌ تجهيز المحتوى فشل: {exc}")
         return 1
-    for note in notes:
+    for note in describe(details):
         print(f"  ✏️  {note}")
     print(f"  ✅ جُهّزت {copied} حزمة · استُبعدت {archived} حزمة مؤرشفة")
     return 0

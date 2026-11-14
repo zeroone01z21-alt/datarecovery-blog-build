@@ -14,7 +14,15 @@
 */ -}}
 {{- $img := cond (eq .Lang "ar") .Site.Params.defaultImageAr .Site.Params.defaultImage -}}
 {{- with .Params.featured_image -}}
-  {{- with $.Resources.GetMatch . }}{{ $img = .Permalink }}{{ end -}}
+  {{- with $.Resources.GetMatch . -}}
+    {{- $share := . -}}
+    {{- /* BMP وTIFF (مقبولان منذ 2026-11) لا تعرضهما بطاقات المشاركة في واتساب
+           وفيسبوك وX: تُرسل نسخة JPEG بعرض 1200 على الأكثر بدل الأصل. */ -}}
+    {{- if in (slice "bmp" "tiff") .MediaType.SubType -}}
+      {{- $share = .Resize (printf "%dx jpg q82" (math.Min .Width 1200 | int)) -}}
+    {{- end -}}
+    {{- $img = $share.Permalink -}}
+  {{- end -}}
 {{- end -}}
 {{- $desc := cond $is404 (T "notFoundDescription") (.Description | default .Site.Params.description | default .Summary) -}}
 {{- $pageTitle := cond $is404 (T "notFound") (cond .IsHome .Site.Title .Title) -}}

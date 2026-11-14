@@ -537,9 +537,50 @@ html[dir="rtl"] .post-body li { line-height: 2; }
 .post-body pre { overflow-x: auto; padding: 1rem; border-radius: .75rem; background: var(--ink); color: var(--cream); }
 .post-body pre code { padding: 0; background: none; }
 .post-body img { margin: 1.75rem 0; border-radius: 1rem; }
-.post-body table { width: 100%; margin: 1.75rem 0; display: block; overflow-x: auto; border-collapse: collapse; }
-.post-body th,
-.post-body td { padding: .55rem .75rem; border: 1px solid var(--line); text-align: start; }
+/* الجداول (2026-11) — داخل غلاف يُمرَّر أفقيًّا على الشاشة الضيّقة
+   (layouts/_default/_markup/render-table.html)، فلا تتمرّر الصفحة كلها.
+   الجدول نفسه بعرض العمود كاملًا: `display:block` القديمة على table كانت
+   تُبقي الخانات بعرض نصّها وتترك فراغًا في آخر الصف.
+
+   الألوان من رموز الموقع وحدها: أرضية البطاقات --surface، ورأس الجدول
+   مشبَّع بالسماوي --orange (14%) وتحته خط سماوي، والنصّ الأبيض فوقه 14:1.
+   الحدود بالخصائص المنطقية (inline-start/block-end) فيصحّ الاتجاه في
+   العربية والإنجليزية بلا قاعدتين. */
+.post-table {
+  margin: 1.75rem 0;
+  overflow-x: auto;
+  border-radius: 1rem;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.post-table:focus-visible { outline: 2px solid var(--orange); outline-offset: 3px; }
+.post-table table { width: 100%; border-collapse: collapse; font-size: .95em; }
+.post-table th,
+.post-table td {
+  /* ثلاث خانات تتّسع في 342px؛ الأكثر يُمرَّر أفقيًّا داخل الغلاف */
+  min-width: 6.5rem;
+  padding: .75rem 1rem;
+  border-block-end: 1px solid var(--line);
+  line-height: 1.75;
+  text-align: start;
+  vertical-align: top;
+}
+.post-table th + th,
+.post-table td + td { border-inline-start: 1px solid var(--line); }
+.post-table th {
+  background: color-mix(in srgb, var(--orange) 14%, var(--surface));
+  border-block-end: 2px solid var(--orange);
+  color: var(--ink-deep);
+  font-weight: 700;
+}
+.post-table tbody tr:nth-child(even) { background: color-mix(in srgb, var(--ink) 4%, transparent); }
+.post-table tbody tr:last-child td { border-block-end: 0; }
+.post-table td strong { color: var(--ink-deep); }
+@media (max-width: 54rem) {
+  .post-table table { font-size: .88em; }
+  .post-table th,
+  .post-table td { padding: .6rem .7rem; }
+}
 .post-back { margin-block-start: 3.5rem; padding-block-start: 1.5rem; border-block-start: 1px solid var(--line); }
 .post-back a { color: var(--orange-text); text-decoration: none; }
 

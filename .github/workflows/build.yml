@@ -1,6 +1,7 @@
 # بناء المدونة ونشرها — القسم 6
 #
-# يُشغَّل من مستودع المحتوى عبر workflow_dispatch.
+# يُشغَّل من مستودع المحتوى عبر workflow_dispatch، ومن schedule.yml حين تضيع
+# إشارة حفظ أو يفشل بناء لعطل عابر.
 #
 # لماذا workflow_dispatch لا repository_dispatch (تصحيح للقسم 6.1):
 #   الثاني يتطلب contents:write على هذا المستودع — أي تعديل قوالبه
@@ -11,6 +12,15 @@
 #   وتحذف ما ليس فيه. في 2026-08-04 محا نشرٌ للموقع مجلد /blog/ كاملًا
 #   وكان يُرفع بـFTP. فلا مفرّ من التسليم داخل المستودع.
 #   العزل المفقود يعوّضه tools/check_deploy_scope.py قبل كل دفعة.
+#
+# لماذا مقال معطوب لا يوقف البقية (2026-11):
+#   كانت أي مشكلة في أي مقال توقف نشر المدونة كلها. من 11 إلى 14 نوفمبر 2026
+#   فشلت عشرة تشغيلات متتالية بسبب صورتين لم تُرفعا في مقال واحد، فلم يصل
+#   شيء إلى الموقع — ولا تعديلات مقالات أخرى — ولم يعلم أحد.
+#   tools/build_blog.py يحجز المقال المعطوب وحده ويعيد البوابات كلها على ما
+#   بقي؛ لا يُنشر شيء لم يجتزها، والمقال المنشور أصلًا يبقى بآخر نسخة سليمة.
+#   والعطل العام (قالب، إعداد، صفحة قسم) يوقف النشر كله كما كان.
+#   النظام نفسه يعمل في مدونة zero2one.sa منذ أكتوبر 2026.
 name: build
 run-name: نشر المدونة · ${{ inputs.content_sha || inputs.reason }}
 
@@ -44,6 +54,8 @@ jobs:
   build:
     name: بناء ونشر
     runs-on: ubuntu-latest
+    outputs:
+      report: ${{ steps.export.outputs.report }}
     steps:
       - name: قوالب المدونة
         id: checkout
@@ -66,6 +78,8 @@ jobs:
             exit 1
           fi
 
+      # التاريخ كاملًا لا آخر نسخة: إن حُجز مقال منشور أصلًا، يُبنى من آخر
+      # نسخة محفوظة منه تجتاز البوابات، فلا يختفي من الموقع بخطأ في تعديل.
       - name: المحتوى
         id: content_checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -73,6 +87,7 @@ jobs:
           repository: zeroone01z21-alt/datarecovery-blog-content
           ref: ${{ inputs.content_sha || 'main' }}
           path: .content-src
+          fetch-depth: 0
 
       - name: التحقق من بصمات الضوابط
         id: controls
@@ -82,34 +97,11 @@ jobs:
         id: cms
         run: python3 tools/check_cms.py
 
-      - name: تجهيز المحتوى واستبعاد المؤرشف
-        id: prepare_content
-        run: |
-          set -euo pipefail
-          report="$RUNNER_TEMP/prepare-content.log"
-          set +e
-          python3 tools/prepare_content.py .content-src/content >"$report" 2>&1
-          exit_code=$?
-          set -e
-          cat "$report"
-          exit "$exit_code"
-
-      - name: تدقيق المحتوى الجاهز للنشر
-        id: content_check
-        run: |
-          set -euo pipefail
-          report="$RUNNER_TEMP/content-check.log"
-          set +e
-          python3 tools/check_content.py content >"$report" 2>&1
-          exit_code=$?
-          set -e
-          cat "$report"
-          exit "$exit_code"
-
       # الموقع يُستنسخ **قبل** البناء لا بعده: هو مصدر الهيكل، لا وجهة النشر
       # وحدها. الخطوة التالية تستخرج منه البرغر والقائمة الجانبية والفوتر،
       # فتُبنى المدونة على هيكل الموقع كما هو **الآن**، لا كما كان يوم آخر
-      # مزامنة يدوية.
+      # مزامنة يدوية. ومنه يعرف بنّاء المدونة أيّ المقالات منشور حاليًا،
+      # وإليه تُفحص روابط المقالات إلى صفحات الموقع.
       - name: مستودع الموقع
         id: site_checkout
         env:
@@ -123,6 +115,15 @@ jobs:
           git clone --depth 1 \
             "https://x-access-token:${TOKEN}@github.com/01team9639-maker/datarecovery-sa.git" site \
             2>&1 | sed -E "s#//[^@]*@#//***@#g"
+
+      # الرمز الذي يكتب الموقع له تاريخ انتهاء. حين ينتهي يتوقف كل نشر.
+      # التحذير يصل في البلاغ قبل 21 يومًا؛ الرمز نفسه لا يُطبع.
+      - name: صلاحية رمز النشر
+        id: token_check
+        continue-on-error: true
+        env:
+          TOKEN: ${{ secrets.SITE_REPO_TOKEN }}
+        run: python3 tools/blog_report.py token-check --output "$RUNNER_TEMP/token.json"
 
       # هيكل الموقع (الهيدر والدرج والبرغر والفوتر) لا يُعاد كتابته هنا: أي نسخة
       # بأسلوبنا تُشبه الموقع ولا تطابقه، وتنحرف عنه مع كل تعديل يجري هناك.
@@ -151,40 +152,14 @@ jobs:
           tar -xzf "$f" hugo && sudo mv hugo /usr/local/bin/
           hugo version
 
-      - name: البناء
-        id: hugo_build
+      # البوابات نفسها وبالترتيب نفسه: تجهيز المحتوى وعقده، Hugo، الخرائط
+      # والفهرسة، SEO، الروابط إلى الموقع، الميزانيات. مقال معطوب يُحجز وحده
+      # (ويبقى المنشور بآخر نسخة سليمة). الخروج 1 = عطل عام: لا نشر.
+      - name: بناء المدونة — مقال معطوب يُحجز وحده
+        id: build_blog
         run: |
-          set -euo pipefail
-          hugo --gc --minify --destination public
-          python3 tools/normalize_sitemaps.py public
-          test -s public/index.html
-
-      - name: فحص خرائط البحث وRSS وIndexNow
-        id: indexing
-        run: python3 tools/check_indexing.py public
-
-      - name: فحص SEO وقواعد الخادم
-        id: seo
-        run: |
-          set -euo pipefail
-          report="$RUNNER_TEMP/seo-check.log"
-          set +e
-          python3 tools/check_seo.py public >"$report" 2>&1
-          exit_code=$?
-          set -e
-          cat "$report"
-          exit "$exit_code"
-
-      # يُفحص مقابل نسخة الموقع المستنسخة في خطوة الهيكل أعلاه. `check_seo`
-      # يغطي الروابط داخل /blog/ فقط، وهذه هي الروابط التي تخرج منها إلى صفحات
-      # الخدمات — وهي بالضبط الروابط التي تحوّل قارئًا إلى عميل.
-      - name: الروابط الداخلية إلى الموقع
-        id: internal_links
-        run: python3 tools/check_internal_links.py public site
-
-      - name: ميزانيات الأداء
-        id: budgets
-        run: python3 tools/check_budgets.py public
+          python3 tools/build_blog.py --source .content-src --site site \
+            --hugo hugo --report "$RUNNER_TEMP/blog-report.json"
 
       - name: استبدال blog/ وحده
         id: replace_blog
@@ -221,6 +196,7 @@ jobs:
           git add blog
           git commit -q -m "نشر المدونة — ${REASON}"
           git push -q origin main 2>&1 | sed -E "s#//[^@]*@#//***@#g"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           echo "✅ نُشر $(git rev-parse --short HEAD)"
 
       # مزامنة Hostinger غير متزامنة ولا سقف معلوم لها. حدث فعليًّا أن
@@ -267,92 +243,66 @@ jobs:
           HEALTHCHECKS_URL: ${{ secrets.HEALTHCHECKS_URL }}
         run: python3 tools/healthcheck.py fail
 
+      # الملخص من تقرير build_blog.py: حالة كل مقال وسببها، بالعربية للكاتب
+      # وبالإنجليزية للمالك. نصّ المقالات يُعقَّم قبل عرضه. ويكتب سجلًا مضغوطًا
+      # (notice «blog-status-v1») تقرؤه «بلاغات النشر» في لوحة الكاتب.
       - name: ملخص النتيجة للكاتب والمالك
         if: always()
+        continue-on-error: true
         env:
           JOB_STATUS: ${{ job.status }}
-          PREPARE_OUTCOME: ${{ steps.prepare_content.outcome }}
-          CONTENT_OUTCOME: ${{ steps.content_check.outcome }}
-          CONTROLS_OUTCOME: ${{ steps.controls.outcome }}
-          CMS_OUTCOME: ${{ steps.cms.outcome }}
-          BUILD_OUTCOME: ${{ steps.hugo_build.outcome }}
-          SEO_OUTCOME: ${{ steps.seo.outcome }}
           PUSH_OUTCOME: ${{ steps.push_site.outcome }}
           LIVE_OUTCOME: ${{ steps.live_verify.outcome }}
           INDEXNOW_OUTCOME: ${{ steps.indexnow_submit.outcome }}
+          PUSHED_SHA: ${{ steps.push_site.outputs.sha }}
+          BUILD_REASON: ${{ inputs.reason }}
         run: |
-          set -u
-          append_log() {
-            report_file="$1"
-            report_title="$2"
-            if [ -s "$report_file" ]; then
-              printf '\n### %s\n\n' "$report_title" >> "$GITHUB_STEP_SUMMARY"
-              while IFS= read -r report_line; do
-                printf '    %s\n' "$report_line" >> "$GITHUB_STEP_SUMMARY"
-              done < "$report_file"
-            fi
-          }
+          python3 tools/blog_report.py summary \
+            --report "$RUNNER_TEMP/blog-report.json" --token "$RUNNER_TEMP/token.json"
 
-          if [ "$PREPARE_OUTCOME" = "failure" ] || \
-             [ "$CONTENT_OUTCOME" = "failure" ] || \
-             [ "$SEO_OUTCOME" = "failure" ]; then
-            cat >> "$GITHUB_STEP_SUMMARY" <<'SUMMARY'
-          ## تعذّر نشر المحتوى | Content needs attention
+      - name: تسليم التقرير لمهمة الإبلاغ
+        id: export
+        if: always()
+        continue-on-error: true
+        env:
+          JOB_STATUS: ${{ job.status }}
+          PUSH_OUTCOME: ${{ steps.push_site.outcome }}
+          LIVE_OUTCOME: ${{ steps.live_verify.outcome }}
+          INDEXNOW_OUTCOME: ${{ steps.indexnow_submit.outcome }}
+          PUSHED_SHA: ${{ steps.push_site.outputs.sha }}
+          BUILD_REASON: ${{ inputs.reason }}
+        run: |
+          python3 tools/blog_report.py export \
+            --report "$RUNNER_TEMP/blog-report.json" --token "$RUNNER_TEMP/token.json" \
+            >> "$GITHUB_OUTPUT"
 
-          **للكاتب:** الموقع الحي لم يتغيّر. اقرأ الرسالة العربية أدناه؛ ستذكر
-          الملف أو الصفحة والمشكلة. إن كانت تخص عنوانًا أو صورة أو ترتيب عناوين
-          مقالك، أصلحها في اللوحة واحفظ مرة واحدة. إن كانت تخص عدة صفحات أو
-          قالبًا، لا تعد المحاولة وأرسل رابط هذا التشغيل إلى المالك.
+  # مهمة منفصلة كي يبقى رمز مهمة البناء (التي تعالج نصّ الكاتب) للقراءة
+  # فقط. هذه وحدها تكتب البلاغ وتعيد تفعيل الفحص الدوري، ولا ترى المحتوى ولا
+  # الأسرار. تعطّلها تحذير لا يقلب نشرًا ناجحًا إلى فشل.
+  notify:
+    name: إبلاغ الكاتب والمالك
+    needs: build
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+      actions: write
+    steps:
+      - name: أدوات المدونة
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
 
-          **Owner:** A content/preparation/page-SEO gate stopped the run before
-          deployment. The live site was not modified. The indented validator
-          output below is untrusted content rendered as code; distinguish a
-          writer-fixable page issue from a template-wide regression.
-          SUMMARY
-            append_log "$RUNNER_TEMP/prepare-content.log" "تجهيز المحتوى"
-            append_log "$RUNNER_TEMP/content-check.log" "تدقيق المحتوى"
-            append_log "$RUNNER_TEMP/seo-check.log" "فحص SEO للصفحات الناتجة"
-          elif [ "$JOB_STATUS" = "success" ]; then
-            cat >> "$GITHUB_STEP_SUMMARY" <<'SUMMARY'
-          ## تم النشر والتحقق | Published and verified
-
-          **للكاتب:** اكتمل النشر، وتحقّق النظام من ظهور النسخة على الموقع الحي.
-          افتح [المدونة](https://datarecovery-sa.com/blog/) لمراجعتها.
-
-          **Owner:** Build gates, site-scope guard, push, and external live marker
-          verification all succeeded.
-          SUMMARY
-            if [ "$INDEXNOW_OUTCOME" = "failure" ]; then
-              printf '\n> IndexNow failed after a verified deployment; publishing remains successful.\n' \
-                >> "$GITHUB_STEP_SUMMARY"
-            fi
-          else
-            cat >> "$GITHUB_STEP_SUMMARY" <<'SUMMARY'
-          ## مشكلة تقنية في النشر | Technical publishing failure
-
-          **للكاتب:** لم يؤكد النظام ظهور المقال على الموقع. لا تكرر الحفظ أو
-          النشر الآن؛ المحتوى محفوظ، وعلى المالك مراجعة المشكلة التقنية أولًا.
-
-          **Owner:** Inspect the stage outcomes below and the full logs. If push
-          succeeded but live verification failed, treat production state as unknown
-          and verify the public marker before retrying or running rollback.
-          SUMMARY
-            {
-              printf '\n| Stage | Outcome |\n|---|---|\n'
-              printf '| controls | %s |\n' "${CONTROLS_OUTCOME:-not-run}"
-              printf '| cms | %s |\n' "${CMS_OUTCOME:-not-run}"
-              printf '| hugo-build | %s |\n' "${BUILD_OUTCOME:-not-run}"
-              printf '| seo | %s |\n' "${SEO_OUTCOME:-not-run}"
-              printf '| push | %s |\n' "${PUSH_OUTCOME:-not-run}"
-              printf '| live-verify | %s |\n' "${LIVE_OUTCOME:-not-run}"
-              # تأخّر المزامنة ليس فشل نشر. يُشرح هنا صراحةً وإلا قرأه الكاتب
-              # رمزًا غامضًا وظنّ أن مقاله لم يُنشر.
-              if [ "${LIVE_OUTCOME:-}" = "failure" ] && [ "${PUSH_OUTCOME:-}" = "success" ]; then
-                printf '\n> ⚠️ **النشر تمّ، لكن Hostinger لم تُظهره خلال 10 دقائق.**\n'
-                printf '> المحتوى في مستودع الموقع وسيظهر عند اكتمال المزامنة.\n'
-                printf '> أُجّل إخطار IndexNow — تلتقط محركات البحث الروابط من الخرائط.\n'
-              fi
-              printf '\n[Open full run](%s/%s/actions/runs/%s)\n' \
-                "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID"
-            } >> "$GITHUB_STEP_SUMMARY"
-          fi
+      - name: بلاغ «حالة نشر المدونة»
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPORT_BUNDLE: ${{ needs.build.outputs.report }}
+          BUILD_RESULT: ${{ needs.build.result }}
+          # المالك (بريد 01team9639@gmail.com). الذكر يرسل بريدًا. الكاتب يدخل
+          # اللوحة بحساب zeroone01z21-alt، صاحب هذا المستودع، فيصله البلاغ
+          # بالمراقبة دون ذكر. أضف حساب الكاتب هنا إن صار له حساب مستقل.
+          NOTIFY_MENTIONS: "01team9639-maker"
+        run: python3 tools/blog_report.py notify
