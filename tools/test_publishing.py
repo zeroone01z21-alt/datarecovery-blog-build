@@ -333,6 +333,21 @@ class LenientPrepare(Sandbox):
         self.assertIn('date: "2026-09-16T20:07:00+03:00"', staged)
         self.assertIn("-07:00", (source / "index.ar.md").read_text(encoding="utf-8"))
 
+    def test_preview_leaves_out_only_the_broken_article(self) -> None:
+        # preview.yml: «--hold-broken» — مقال صورته غير مرفوعة لا يوقف المعاينة ولا اللوحة.
+        repo = self.content_repo()
+        blog = repo / "content" / "blog"
+        write_bundle(blog, "good-post", article("good-post"))
+        write_bundle(blog, "broken-post", article("broken-post", body=BODY + "\n![x](never-uploaded.webp)\n"))
+        problems: dict = {}
+        prepare_content.prepare(repo / "content", problems=problems)
+        held = prepare_content.hold_broken(problems)
+        self.assertEqual(list(held), ["broken-post"])
+        self.assertIn("never-uploaded.webp", held["broken-post"][0])
+        self.assertTrue((self.tmp / "content" / "good-post").is_dir())
+        self.assertFalse((self.tmp / "content" / "broken-post").exists())
+        self.assertEqual(check_content.check_bundle(str(self.tmp / "content" / "good-post"), self.schema), [])
+
     def test_english_only_bundle_gets_language_suffix(self) -> None:
         repo = self.content_repo()
         write_bundle(repo / "content" / "blog", "en-only", article("en-only"), lang="en")
@@ -842,6 +857,11 @@ class Contracts(unittest.TestCase):
         notify_job = build.split("  notify:")[1]
         self.assertIn("issues: write", notify_job)
         self.assertIn("needs.build.outputs.report", notify_job)
+
+    def test_preview_holds_broken_articles_too(self) -> None:
+        preview = self.read("preview.yml")
+        self.assertIn("tools/prepare_content.py .content-src/content --hold-broken", preview,
+                      "مقال معطوب لا يوقف المعاينة ولا نشر لوحة الكاتب")
 
     def test_scheduler_is_separate(self) -> None:
         schedule = self.read("schedule.yml")
