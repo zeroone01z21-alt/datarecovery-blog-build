@@ -1,0 +1,30 @@
+{{- /*
+  جدول نص المقال داخل غلاف يُمرَّر أفقيًّا: جدول من أربع خانات عربية لا
+  يتّسع في 342px، فيتمرّر داخل غلافه ولا تتمرّر الصفحة كلها. الغلاف قابل
+  للتركيز ليُمرَّر بلوحة المفاتيح أيضًا، وله اسم يقرؤه قارئ الشاشة: «جدول 1»،
+  «جدول 2»… فلا يتكرّر معلمان باسم واحد في مقال فيه جدولان.
+  الجدول الذي ينقصه سطره الفاصل يكمله tools/prepare_content.py قبل Hugo.
+  منقول من مدونة zero2one.sa (2026-10-22)؛ الألوان في assets/css/blog.css.
+*/ -}}
+<div class="post-table" role="region" aria-label="{{ T "tableLabel" }} {{ add .Ordinal 1 }}" tabindex="0">
+<table>
+  <thead>
+    {{- range .THead }}
+    <tr>
+      {{- range . }}
+      <th scope="col"{{ with .Alignment }} style="text-align: {{ . }}"{{ end }}>{{ .Text }}</th>
+      {{- end }}
+    </tr>
+    {{- end }}
+  </thead>
+  <tbody>
+    {{- range .TBody }}
+    <tr>
+      {{- range . }}
+      <td{{ with .Alignment }} style="text-align: {{ . }}"{{ end }}>{{ .Text }}</td>
+      {{- end }}
+    </tr>
+    {{- end }}
+  </tbody>
+</table>
+</div>

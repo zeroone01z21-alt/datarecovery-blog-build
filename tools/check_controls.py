@@ -47,8 +47,10 @@ GUARDED_FILES = [
     "layouts/partials/head.html",   # metadata وhreflang وJSON-LD وnoindex
     "layouts/_default/baseof.html",  # ترتيب هيكل الموقع حول المحتوى
     "preview/index.html",           # جذر المعاينة لا يدخل فهرس البحث
-    "static/.htaccess",             # 404/301/410 الإنجليزية
-    "static/ar/.htaccess",          # 404/410 العربية
+    "static/.htaccess",             # 404/301/410 العربية (الجذر)
+    # كان هنا «static/ar/.htaccess» منقولًا من مدونة zero2one.sa، وهو غير موجود
+    # في هذه المدونة؛ والملف الغائب يُتخطّى بصمت، فلم يُبصم ملف الإنجليزية قط.
+    "static/en/.htaccess",          # 404/410 الإنجليزية
     "tools/check_controls.py",
     "tools/check_deploy_scope.py",   # يمنع لمس ملفات الموقع خارج blog/
     "tools/check_budgets.py",        # يمنع تآكل الأداء
@@ -64,6 +66,13 @@ GUARDED_FILES = [
     "tools/healthcheck.py",          # start/success/fail للمراقب الخارجي الاختياري
     "tools/backup_local.py",         # النسخة المحلية الشهرية خارج GitHub
     "tools/sanitize_preview_htaccess.py",  # يحفظ Basic Auth ويزيل Header القديمة
+    # موثوقية النشر (2026-11-14، منقولة من مدونة zero2one.sa):
+    "tools/build_blog.py",           # يحجز المقال المعطوب وحده ويبقي نسخته السابقة
+    "tools/blog_report.py",          # الملخص والبلاغ ولوحة الكاتب وانتهاء الرمز
+    "tools/schedule_check.py",       # الفحص الدوري: الإشارة الضائعة والبناء الفاشل
+    "tools/test_publishing.py",      # اختبارات ما سبق بلا شبكة (controls.yml)
+    "tools/check_internal_links.py",  # الروابط من المقال إلى صفحات الموقع
+    "layouts/_default/_markup/render-table.html",  # الجدول في غلاف يُمرَّر ويُسمّى
 ]
 EXCLUDE = {"controls/fingerprints.txt"}
 

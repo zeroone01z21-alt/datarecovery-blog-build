@@ -85,13 +85,32 @@ def display(path):
     return os.path.relpath(full, ROOT) if full.startswith(ROOT + os.sep) else full
 
 
-def check_file(path, schema, problems):
+# ── ما يحجز المقال وما يُنبّه الكاتب فقط (2026-11) ─────────────────────
+#
+# حتى نوفمبر 2026 كان كل بند هنا يوقف نشر المدونة كلها: الكلمة المفتاحية
+# إلزامية، وطول العنوان والوصف حدّ صارم. فصارت بنود «جودة السيو» اقتراحًا
+# للكاتب يظهر في «بلاغات النشر» والمقال منشور: حدود الطول في كل حقل عليه
+# "advisory_length" في المخطط (العنوان، وعنوان محركات البحث، والوصف،
+# والكلمة)، وكل ما يخص الكلمة المفتاحية. ويبقى حاجزًا ما يكسر الصفحة نفسها:
+# حقل إلزامي فارغ، رابط غير صالح، تاريخ غير مفهوم، صورة مفقودة، عناوين تُسقط
+# القالب، مقال فارغ. والحاجز يحجز **مقاله وحده** (tools/build_blog.py).
+#
+# نُقل من مدونة zero2one.sa بقرار المالك (2026-11-14).
+
+
+def check_file(path, schema, problems, warnings=None):
+    """``warnings``: إن مُرّرت قائمة جُمعت فيها الاقتراحات (لا تحجز)؛ وإلا أُهملت."""
     rel = display(path)
-    text = open(path, encoding="utf-8").read()
+    with open(path, encoding="utf-8") as handle:
+        text = handle.read()
     fm, body = parse_front_matter(text)
 
     def bad(msg):
         problems.append((rel, msg))
+
+    def soft(msg):
+        if warnings is not None:
+            warnings.append((rel, msg))
 
     if fm is None:
         bad("الملف لا يبدأ بكتلة إعدادات بين سطري ---. أعد حفظه من اللوحة.")
@@ -134,7 +153,8 @@ def check_file(path, schema, problems):
             n = visible_length(val)
             lo, hi = rule.get("min_length"), rule.get("max_length")
             if (lo and n < lo) or (hi and n > hi):
-                bad((rule.get("error_ar") or f"«{name}» خارج الحدود المسموحة.")
+                (soft if rule.get("advisory_length") else bad)(
+                    (rule.get("error_ar") or f"«{name}» خارج الحدود المسموحة.")
                     .replace("{actual}", str(n)))
             pat = rule.get("pattern")
             if pat and not re.match(pat, str(val)):
@@ -204,6 +224,77 @@ def check_file(path, schema, problems):
     if len(body.strip()) < 200 and not fm.get("draft"):
         bad("المقال شبه فارغ. اكتب المحتوى أو أعده مسودة قبل النشر.")
 
+    if not fm.get("draft"):
+        for note in keyword_notes(fm, body):
+            soft(note)
+
+    # ── العناوين ──────────────────────────────────────────────────────
+    # check_seo.py يرفض عنوانًا فارغًا وقفزة في الدرجات على الصفحة المبنية،
+    # برسالة عن ملف HTML لا يعرف الكاتب صلته بمقاله، وبعد Hugo وبعد كل شيء.
+    # القاعدة نفسها هنا تمسكه قبل البناء، باسم الملف ورقم السطر وبلغة الكاتب.
+    # (h1 في المتن يُخفَّض في tools/prepare_content.py قبل هذا الفحص.)
+    for line_no, line in enumerate(without_code(body).splitlines(), start=1):
+        if re.match(r"^#{1,6}\s*$", line):
+            bad(f"عنوان فارغ في السطر {line_no} — احذفه أو اكتب نصّه.")
+    previous = 1
+    for match in re.finditer(r"(?m)^(#{1,6})\s+(\S.*)$", without_code(body)):
+        level, heading = len(match.group(1)), match.group(2).strip()
+        if level > previous + 1:
+            bad(f"«{heading[:40]}» قفزة من عنوان {previous} إلى {level}. "
+                f"استعمل «عنوان {previous + 1}» بدلها.")
+        previous = level
+
+    check_markdown_images(path, body, bad)
+
+
+# ── صور داخل النصّ ──────────────────────────────────────────────────
+#
+# الخطّاف layouts/_default/_markup/render-image.html يُسقط بناء Hugo كلّه
+# إن أشارت صورة في النصّ إلى ملف ليس في حزمة المقال. هذا ما أوقف نشر المدونة
+# كلها من 11 إلى 14 نوفمبر 2026: مقال «الفرق بين الهجمات الإلكترونية والاختراق
+# الأمني» يشير إلى صورتين لم تُرفعا قط. الفحص هنا يمسكه قبل البناء، باسم
+# الصورة وبلغة الكاتب، فيُحجز المقال وحده.
+#
+# المطابقة أبسط من GetMatch في Hugo عن قصد: اسم ملف داخل مجلد المقال.
+# ما يفوته هذا الفحص يُسنده بنّاء المدونة إلى مقاله من رسالة Hugo نفسها.
+MARKDOWN_IMAGE = re.compile(
+    r"!\[[^\]]*\]\(\s*(?:<([^>\n]+)>|([^\s)]+))"
+    r"(?:\s+(?:\"[^\"\n]*\"|'[^'\n]*'))?\s*\)"
+)
+FENCED_CODE = re.compile(r"(?ms)^(```|~~~).*?^\1[ \t]*$")
+INLINE_CODE = re.compile(r"`[^`\n]*`")
+
+
+def without_code(body):
+    """النصّ وكتل الشيفرة أسطر فارغة: # داخلها تعليق برمجي لا عنوان.
+
+    عدد الأسطر يبقى كما هو كي يطابق رقم السطر في الرسالة ما يراه الكاتب.
+    """
+    return FENCED_CODE.sub(lambda m: "\n" * m.group(0).count("\n"), body)
+
+
+def markdown_image_targets(body):
+    """وجهات صور Markdown في النص، بلا ما داخل كتل الشيفرة (لا تُعرض صورًا)."""
+    text = INLINE_CODE.sub("", FENCED_CODE.sub("", body))
+    return [m.group(1) or m.group(2) for m in MARKDOWN_IMAGE.finditer(text)]
+
+
+def check_markdown_images(path, body, bad):
+    from urllib.parse import unquote
+    bundle = os.path.dirname(path)
+    for target in markdown_image_targets(body):
+        if re.match(r"^[A-Za-z][A-Za-z0-9+.-]*:", target) or target.startswith("//"):
+            bad(f"الصورة «{target[:80]}» داخل النصّ رابط خارجي. احذفها وأدرجها من "
+                "زرّ الصورة في المحرر لتُحفظ داخل مجلد المقال.")
+        elif (target.startswith(("/", "./", "../")) or "\\" in target
+              or ".." in target.split("/")):
+            bad(f"مسار الصورة «{target[:80]}» داخل النصّ غير صالح. احذفها وأعد "
+                "إدراجها من زرّ الصورة في المحرر.")
+        elif not (os.path.isfile(os.path.join(bundle, target))
+                  or os.path.isfile(os.path.join(bundle, unquote(target)))):
+            bad(f"الصورة «{target[:80]}» داخل النصّ غير موجودة في مجلد المقال — "
+                "لم تُرفع مع المقال. أعد رفعها من زرّ الصورة في المحرر، أو احذفها من النص، ثم احفظ.")
+
 
 def check_images(directory, schema, problems):
     cap = schema["bundle"]["max_image_bytes"]
@@ -250,139 +341,177 @@ def keyword_in(haystack, keyword):
     return keyword and keyword in normalize_keyword(haystack)
 
 
-def check_focus_keywords(directory, problems, notes):
-    """يوقف على الأخطاء الموضوعية، ويلاحظ ما عداها بلا إيقاف.
+def keyword_notes(fm, body):
+    """اقتراحات الكلمة المفتاحية لملف واحد. لا تحجز شيئًا.
 
-    الإيقاف محصور في اثنتين: حقل فارغ، وكلمة يستعملها مقال آخر منشور بلغته
-    نفسها. الثانية هي التنافس الداخلي (cannibalization): مقالان يستهدفان
-    استعلامًا واحدًا يتقاسمان إشاراته فيهبطان معًا، وهو ضرر صامت لا يظهر في
-    أي فحص تقني — لذلك يستحق الإيقاف وحده دون بقية القواعد.
-
-    وما عداه إرشاد: غيابها عن العنوان أو الوصف أو الفقرة الأولى أو عناوين H2،
-    وكثافة تتجاوز 3% وهي حدّ الحشو المتعارف عليه. هذه أحكام تحريرية يقدّرها
-    الكاتب بسياق مقاله، وإيقاف النشر عليها يحوّل الأداة إلى عائق.
+    حتى نوفمبر 2026 كان الحقل إلزاميًّا وفراغه يوقف النشر. صار اختياريًّا،
+    وما يخصّه كله إرشاد: غيابها عن العنوان أو الوصف أو الفقرة الأولى أو
+    العناوين الفرعية، وكثافة تتجاوز 3% وهي حدّ الحشو المتعارف عليه. أحكام
+    تحريرية يقدّرها الكاتب بسياق مقاله.
     """
-    blog = os.path.join(directory, "blog")
-    root = blog if os.path.isdir(blog) else directory
-    if not os.path.isdir(root):
-        return
+    raw = str(fm.get("focus_keyword") or "").strip()
+    if not raw:
+        return []
+    key = normalize_keyword(raw)
+    notes = []
+    where = []
+    if not keyword_in(fm.get("title", ""), key):
+        where.append("العنوان")
+    if not keyword_in(fm.get("description", ""), key):
+        where.append("الوصف")
+    paragraphs = [p for p in body.strip().split("\n\n") if p.strip()]
+    if not (paragraphs and keyword_in(paragraphs[0], key)):
+        where.append("الفقرة الأولى")
+    headings = " ".join(re.findall(r"^##+\s+(.*)$", body, re.M))
+    if not keyword_in(headings, key):
+        where.append("العناوين الفرعية")
+    if where:
+        notes.append(f"الكلمة المفتاحية «{raw}» غائبة عن " + " و".join(where)
+                     + ". يُستحسن ذكرها فيها.")
+
+    words = normalize_keyword(body).split()
+    span = len(key.split())
+    if words and span:
+        hits = sum(1 for i in range(len(words) - span + 1)
+                   if " ".join(words[i:i + span]) == key)
+        density = hits * span / len(words) * 100
+        if density > 3:
+            notes.append(f"كثافة «{raw}» {density:.1f}% وهي فوق حدّ الحشو 3% — "
+                         "جوجل قد يقرؤها تلاعبًا. خفّف تكرارها.")
+    return notes
+
+
+def keyword_duplicates(directory):
+    """(ملف، رسالة) لكل كلمة مفتاحية يستهدفها مقالان منشوران بلغة واحدة.
+
+    التنافس الداخلي (cannibalization) ضرر حقيقي: مقالان على استعلام واحد
+    يتقاسمان إشاراته فيهبطان معًا. لكنه قرار تحريري لا عطل في صفحة، فصار
+    اقتراحًا (2026-11) بعد أن كان يوقف النشر. الرسالة تسمّي الطرفين، وتظهر
+    على الأحدث منهما ترتيبًا.
+    """
+    found = []
     seen = {}
-    for name in sorted(os.listdir(root)):
-        bundle = os.path.join(root, name)
-        if not os.path.isdir(bundle) or name.startswith("."):
-            continue
-        for filename in sorted(os.listdir(bundle)):
-            if not (filename.startswith("index.") and filename.endswith(".md")):
-                continue
-            path = os.path.join(bundle, filename)
-            with open(path, encoding="utf-8") as handle:
-                fm, body = parse_front_matter(handle.read())
-            if fm is None or fm.get("draft"):
-                continue
-            raw = str(fm.get("focus_keyword") or "").strip()
-            if not raw:
-                continue  # الحقل المطلوب يمسكه check_file برسالته
-            lang = filename[len("index."):-len(".md")]
-            key = normalize_keyword(raw)
-
-            owner = seen.get((lang, key))
-            if owner:
-                # الرسالة تسمّي الطرفين لأن أيّهما يُعلَّق عليه الخطأ يحدّده
-                # ترتيب المجلدات لا خطأ الكاتب. من يفتح أيًّا منهما يعرف
-                # المقال الآخر ويقرّر بنفسه أيّهما يغيّر كلمته.
-                problems.append((display(path),
-                                 f"الكلمة المفتاحية «{raw}» مستهدَفة في مقالين: "
-                                 f"«{owner}» و«{name}». مقالان على استعلام واحد "
-                                 "يتنافسان ويخسران معًا — غيّر كلمة أحدهما."))
-            else:
-                seen[(lang, key)] = name
-
-            where = []
-            if not keyword_in(fm.get("title", ""), key):
-                where.append("العنوان")
-            if not keyword_in(fm.get("description", ""), key):
-                where.append("الوصف")
-            paragraphs = [p for p in body.strip().split("\n\n") if p.strip()]
-            if not (paragraphs and keyword_in(paragraphs[0], key)):
-                where.append("الفقرة الأولى")
-            headings = " ".join(re.findall(r"^##+\s+(.*)$", body, re.M))
-            if not keyword_in(headings, key):
-                where.append("العناوين الفرعية")
-            if where:
-                notes.append(f"{name}/{filename}: «{raw}» غائبة عن " + " و".join(where))
-
-            words = normalize_keyword(body).split()
-            span = len(key.split())
-            if words and span:
-                hits = sum(1 for i in range(len(words) - span + 1)
-                           if " ".join(words[i:i + span]) == key)
-                density = hits * span / len(words) * 100
-                if density > 3:
-                    notes.append(f"{name}/{filename}: كثافة «{raw}» {density:.1f}% "
-                                 "وهي فوق حدّ الحشو 3% — جوجل يقرأها تلاعبًا")
-
-
-def check_bundle_consistency(directory, problems):
-    """الـslug والتصنيفات والأرشفة عقد واحد بين ترجمات الحزمة.
-
-    تعمل على شكلَي المحتوى: مصدر الكاتب يضع الحزم في ``content/blog/``، و
-    ``prepare_content.py`` يسطّحها إلى جذر ``content/`` قبل البناء. البحث عن
-    ``blog/`` وحده كان يُخرج الدالة صامتة في CI — وهناك بالضبط تُشغَّل، على
-    النسخة المجهَّزة لا على المصدر — فلم يُفحص هذا العقد ولا مرة منذ كُتب.
-
-    2026-09-06: مقال جديد حمل slug مقال منشور. مرّ من البوّابة، فطمسه Hugo
-    فوق المقال القديم على الرابط نفسه بلا تحذير — Hugo لا يُخطئ على تكرار
-    الروابط — وسقط البناء أخيرًا عند tools/normalize_sitemaps.py برسالة
-    «الخريطة تحوي روابط مكررة» لا تدل على المقال ولا على السبب.
-    """
-    blog = os.path.join(directory, "blog")
-    root = blog if os.path.isdir(blog) else directory
-    siblings = {n for n in os.listdir(root) if os.path.isdir(os.path.join(root, n))}
-    for name in sorted(os.listdir(root)):
-        bundle = os.path.join(root, name)
-        if not os.path.isdir(bundle) or name.startswith("."):
-            continue
-        records = []
+    for name, bundle in bundle_dirs(directory):
         for filename in sorted(os.listdir(bundle)):
             if not (filename.startswith("index.") and filename.endswith(".md")):
                 continue
             path = os.path.join(bundle, filename)
             with open(path, encoding="utf-8") as handle:
                 fm, _ = parse_front_matter(handle.read())
-            if fm is not None:
-                records.append((path, fm))
-        if not records:
-            continue
-        first_path, first = records[0]
-        expected = {
-            "slug": first.get("slug"),
-            "archived": bool(first.get("archived", False)),
-            "categories": sorted(first.get("categories", [])),
-        }
-        if expected["slug"] != name:
-            # لوحة Sveltia تبني مسار الحزمة من الـslug نفسه. فإن كتب الكاتب
-            # رابطًا مستعملًا، لا تكتب فوق المقال القديم بل تُلحق «-رقم» باسم
-            # المجلد وحده وتترك الحقل كما كُتب — بلا تحذير. هذه بصمة التصادم،
-            # ونسمّيه للكاتب بها بدل مطالبته بمطابقة اسم مجلد لا يراه أصلًا.
-            stem = re.sub(r"-\d+$", "", name)
-            if stem != name and expected["slug"] == stem and stem in siblings:
-                problems.append((display(first_path),
-                                 f"الرابط «{stem}» مستعمل في مقال آخر. "
-                                 "افتح حقل «الرابط القصير بالإنجليزية» واختر "
-                                 "رابطًا مختلفًا، ثم احفظ."))
+            if fm is None or fm.get("draft") or fm.get("archived"):
+                continue
+            raw = str(fm.get("focus_keyword") or "").strip()
+            if not raw:
+                continue
+            lang = filename[len("index."):-len(".md")]
+            key = normalize_keyword(raw)
+            owner = seen.get((lang, key))
+            if owner:
+                found.append((display(path),
+                              f"الكلمة المفتاحية «{raw}» مستهدَفة أيضًا في «{owner}». "
+                              "مقالان على استعلام واحد يتنافسان — يُستحسن تغيير كلمة أحدهما."))
             else:
-                problems.append((display(first_path),
-                                 f"قيمة slug يجب أن تطابق اسم مجلد الحزمة «{name}»."))
-        for path, fm in records[1:]:
-            actual = {
-                "slug": fm.get("slug"),
-                "archived": bool(fm.get("archived", False)),
-                "categories": sorted(fm.get("categories", [])),
-            }
-            for field in expected:
-                if actual[field] != expected[field]:
-                    problems.append((display(path),
-                                     f"الحقل «{field}» يجب أن يتطابق بين كل ترجمات الحزمة."))
+                seen[(lang, key)] = name
+    return found
+
+
+def is_bundle(path):
+    return os.path.isdir(path) and any(
+        f.startswith("index.") and f.endswith(".md") for f in os.listdir(path))
+
+
+def bundle_dirs(directory):
+    """حزم المقالات في أيّ من التخطيطين.
+
+    مصدر الكاتب يضعها في ``content/blog/<slug>/``، والنسخة المجهّزة للبناء في
+    ``content/<slug>/``.
+    """
+    blog = os.path.join(directory, "blog")
+    base = blog if os.path.isdir(blog) and not is_bundle(blog) else directory
+    if not os.path.isdir(base):
+        return
+    for name in sorted(os.listdir(base)):
+        path = os.path.join(base, name)
+        if not name.startswith(".") and is_bundle(path):
+            yield name, path
+
+
+def check_one_bundle_consistency(name, bundle, problems):
+    """الـslug والتصنيفات والأرشفة عقد واحد بين ترجمات الحزمة.
+
+    2026-09-06: مقال جديد حمل slug مقال منشور. مرّ من البوّابة، فطمسه Hugo
+    فوق المقال القديم على الرابط نفسه بلا تحذير — Hugo لا يُخطئ على تكرار
+    الروابط — وسقط البناء أخيرًا عند tools/normalize_sitemaps.py برسالة
+    «الخريطة تحوي روابط مكررة» لا تدل على المقال ولا على السبب.
+    """
+    parent = os.path.dirname(os.path.normpath(bundle))
+    siblings = {n for n in os.listdir(parent) if os.path.isdir(os.path.join(parent, n))}
+    records = []
+    for filename in sorted(os.listdir(bundle)):
+        if not (filename.startswith("index.") and filename.endswith(".md")):
+            continue
+        path = os.path.join(bundle, filename)
+        with open(path, encoding="utf-8") as handle:
+            fm, _ = parse_front_matter(handle.read())
+        if fm is not None:
+            records.append((path, fm))
+    if not records:
+        return
+    first_path, first = records[0]
+    expected = {
+        "slug": first.get("slug"),
+        "archived": bool(first.get("archived", False)),
+        "categories": sorted(first.get("categories", [])),
+    }
+    if expected["slug"] != name:
+        # لوحة Sveltia تبني مسار الحزمة من الـslug نفسه. فإن كتب الكاتب
+        # رابطًا مستعملًا، لا تكتب فوق المقال القديم بل تُلحق «-رقم» باسم
+        # المجلد وحده وتترك الحقل كما كُتب — بلا تحذير. هذه بصمة التصادم،
+        # ونسمّيه للكاتب بها بدل مطالبته بمطابقة اسم مجلد لا يراه أصلًا.
+        stem = re.sub(r"-\d+$", "", name)
+        if stem != name and expected["slug"] == stem and stem in siblings:
+            problems.append((display(first_path),
+                             f"الرابط «{stem}» مستعمل في مقال آخر. "
+                             "افتح حقل «الرابط القصير بالإنجليزية» واختر "
+                             "رابطًا مختلفًا، ثم احفظ."))
+        else:
+            problems.append((display(first_path),
+                             f"قيمة slug يجب أن تطابق اسم مجلد الحزمة «{name}»."))
+    for path, fm in records[1:]:
+        actual = {
+            "slug": fm.get("slug"),
+            "archived": bool(fm.get("archived", False)),
+            "categories": sorted(fm.get("categories", [])),
+        }
+        for field in expected:
+            if actual[field] != expected[field]:
+                problems.append((display(path),
+                                 f"الحقل «{field}» يجب أن يتطابق بين كل ترجمات الحزمة."))
+
+
+def check_bundle_consistency(directory, problems):
+    """على شكلَي المحتوى: مصدر الكاتب (``content/blog/``) والنسخة المجهّزة
+    (جذر ``content/``). البحث عن ``blog/`` وحده كان يُخرج الدالة صامتة في CI —
+    وهناك بالضبط تُشغَّل — فلم يُفحص هذا العقد ولا مرة حتى 2026-09-07."""
+    for name, bundle in bundle_dirs(directory):
+        check_one_bundle_consistency(name, bundle, problems)
+
+
+def check_bundle(bundle, schema, warnings=None):
+    """كل فحوص مقال واحد، لبنّاء المدونة: مشكلة في مقال تحجزه هو وحده.
+
+    الفحوص نفسها التي يجريها main() على الشجرة كلها، مقصورةً على الحزمة.
+    ``warnings``: قائمة تُجمع فيها الاقتراحات التي لا تحجز. تكرار الكلمة
+    المفتاحية بين مقالين يحتاج الشجرة كلها: انظر keyword_duplicates().
+    """
+    problems = []
+    name = os.path.basename(os.path.normpath(bundle))
+    for filename in sorted(os.listdir(bundle)):
+        if filename.endswith(".md"):
+            check_file(os.path.join(bundle, filename), schema, problems, warnings)
+    check_one_bundle_consistency(name, bundle, problems)
+    check_images(bundle, schema, problems)
+    return problems
 
 
 def main():
@@ -396,19 +525,19 @@ def main():
 
     schema = load_schema()
     problems = []
-    # قناة ثانية إلى جانب problems: ملاحظات تُطبع ولا تُوقف. بلا فصلها كان
+    # قناة ثانية إلى جانب problems: اقتراحات تُطبع ولا تُوقف. بلا فصلها كان
     # الخيار الوحيد بين إسقاط البناء وبين الصمت — وأحكام التحرير لا تحتمل
     # الأول ولا تستحق الثاني.
-    notes = []
+    warnings = []
     count = 0
     for base, dirs, files in os.walk(directory):
         dirs[:] = [d for d in dirs if not d.startswith(".")]
         for f in files:
             if f.endswith(".md"):
                 count += 1
-                check_file(os.path.join(base, f), schema, problems)
+                check_file(os.path.join(base, f), schema, problems, warnings)
     check_bundle_consistency(directory, problems)
-    check_focus_keywords(directory, problems, notes)
+    warnings.extend(keyword_duplicates(directory))
     check_images(directory, schema, problems)
 
     if as_json:
@@ -416,14 +545,14 @@ def main():
                          ensure_ascii=False, indent=2))
         return 1 if problems else 0
 
-    for note in notes:
-        print(f"  ⚠️  {note}")
-    if notes:
+    if warnings:
+        print(f"  💡 {len(warnings)} اقتراح لا يوقف النشر:")
+        for f, m in warnings:
+            print(f"     • {f}: {m}")
         print()
 
     if not problems:
-        print(f"  ✅ {count} ملف — لا مشاكل"
-              + (f" · {len(notes)} ملاحظة كلمة مفتاحية" if notes else ""))
+        print(f"  ✅ {count} ملف — لا مشاكل")
         return 0
 
     print(f"  ❌ {len(problems)} مشكلة في {count} ملف\n")

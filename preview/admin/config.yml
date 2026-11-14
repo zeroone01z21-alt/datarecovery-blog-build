@@ -66,34 +66,28 @@ collections:
         label: "عنوان المقال"
         required: true
         i18n: true
-        minlength: 10
-        maxlength: 70
+        hint: "المستحسن بين 10 و70 حرفًا، والخروج عنه لا يمنع النشر."
         widget: "string"
       -
         name: "meta_title"
         label: "عنوان محركات البحث (اختياري)"
         required: false
         i18n: true
-        hint: "اتركه فارغًا وسيُستخدم عنوان المقال. املأه حين تريد عنوانًا مختلفًا في نتائج البحث — يظهر كما تكتبه بلا إضافة، وجوجل يقصّ عند نحو 60 محرفًا."
-        minlength: 10
-        maxlength: 70
+        hint: "اتركه فارغًا وسيُستخدم عنوان المقال. املأه حين تريد عنوانًا مختلفًا في نتائج البحث — يظهر كما تكتبه بلا إضافة، وجوجل يقصّ عند نحو 60 محرفًا. المستحسن بين 10 و70 حرفًا، والخروج عنه لا يمنع النشر."
         widget: "string"
       -
         name: "description"
         label: "الوصف الذي يظهر في نتائج البحث"
         required: true
         i18n: true
-        minlength: 50
-        maxlength: 160
+        hint: "المستحسن بين 50 و160 حرفًا، والخروج عنه لا يمنع النشر."
         widget: "string"
       -
         name: "focus_keyword"
         label: "الكلمة المفتاحية المستهدفة"
-        required: true
+        required: false
         i18n: true
-        hint: "الاستعلام الذي تريد أن يجدك القارئ به، بلغة المقال نفسه. يُوقف النشر إن تُرك فارغًا أو استعمله مقال آخر — مقالان على كلمة واحدة يتنافسان ويخسران معًا. وغيابه عن العنوان أو الفقرة الأولى ملاحظة في سجلّ النشر لا مانع."
-        minlength: 3
-        maxlength: 60
+        hint: "الاستعلام الذي تريد أن يجدك القارئ به، بلغة المقال نفسه. اختياري: حين تملؤه يقترح عليك النظام في «بلاغات النشر» ما يُستحسن (وروده في العنوان والوصف والفقرة الأولى، وألّا يستهدفه مقال آخر)، والمقال يُنشر عاديًا في كل الأحوال. المستحسن بين 3 و60 حرفًا، والخروج عنه لا يمنع النشر."
         widget: "string"
       -
         name: "slug"
@@ -186,7 +180,7 @@ collections:
         widget: "image"
         choose_url: false
         multiple: false
-        accept: "image/webp,image/avif,image/jpeg,image/png"
+        accept: "image/webp,image/avif,image/jpeg,image/png,image/gif,image/bmp,image/tiff"
       -
         name: "featured_image_alt"
         label: "وصف صورة المشاركة"

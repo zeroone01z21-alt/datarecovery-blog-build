@@ -26,6 +26,11 @@
   {{- end -}}
   {{- $fallback := $image -}}
   {{- if gt $image.Width 1200 }}{{ $fallback = $image.Resize "1200x" }}{{ end -}}
+  {{- /* BMP وTIFF تقبلهما اللوحة منذ 2026-11 ولا تعرضهما أغلب المتصفحات في
+         <img>، فالاحتياطي نسخة JPEG بالعرض نفسه لا الأصل. */ -}}
+  {{- if in (slice "bmp" "tiff") $image.MediaType.SubType -}}
+    {{- $fallback = $image.Resize (printf "%dx jpg q82" $maxWidth) -}}
+  {{- end -}}
   <picture class="responsive-picture">
     <source type="image/avif" srcset="{{ delimit $avifSet ", " }}" sizes="{{ $sizes }}">
     <source type="image/webp" srcset="{{ delimit $webpSet ", " }}" sizes="{{ $sizes }}">

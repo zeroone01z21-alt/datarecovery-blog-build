@@ -23,11 +23,18 @@
 الصفحة تظهر سليمة والرابط يقود إلى الإنتاج بدل النسخة قيد المراجعة.
 
 الاستخدام:
-    python3 tools/check_internal_links.py <مجلد-مخرجات-المدونة> <جذر-مستودع-الموقع>
+    python3 tools/check_internal_links.py <مجلد-مخرجات-المدونة> <جذر-مستودع-الموقع> [--json-out <ملف>]
+
+قيد معروف (2026-11-14): HREF يطابق القيم بين علامتي تنصيص فقط، وHugo بـ--minify
+يحذف التنصيص من href حين يجوز، فلا تكاد البوابة تجد رابطًا تفحصه («0 رابطًا»).
+ولو أُصلح النمط كما هو لأوقف كل المقالات المنشورة: روابطها إلى الموقع كلها
+مطلقة (https://datarecovery-sa.com/...) وكلها سليمة الوجهة. الإصلاح قرار ينتظر
+المالك: الرابط المطلق اقتراح لا حجز، والرابط المكسور وحده يحجز مقاله.
 """
 
 from __future__ import annotations
 
+import json
 import re
 import sys
 from pathlib import Path
@@ -58,11 +65,17 @@ def site_has(site: Path, path: str) -> bool:
 
 
 def main() -> int:
-    if len(sys.argv) != 3:
-        print("  الاستخدام: check_internal_links.py <مخرجات المدونة> <جذر الموقع>")
+    args = sys.argv[1:]
+    json_out = None
+    if "--json-out" in args:
+        at = args.index("--json-out")
+        json_out = Path(args[at + 1]) if at + 1 < len(args) else None
+        del args[at:at + 2]
+    if len(args) != 2:
+        print("  الاستخدام: check_internal_links.py <مخرجات المدونة> <جذر الموقع> [--json-out <ملف>]")
         return 2
 
-    public, site = Path(sys.argv[1]), Path(sys.argv[2])
+    public, site = Path(args[0]), Path(args[1])
     for label, path in (("مخرجات المدونة", public), ("جذر الموقع", site)):
         if not path.is_dir():
             print(f"  ❌ {label} غير موجود: {path}")
@@ -104,6 +117,13 @@ def main() -> int:
                     f"الرابط «{href}» لا يقابل أي صفحة في الموقع. "
                     f"تأكد من المسار، أو اختر صفحة الخدمة الصحيحة."
                 )))
+
+    # --json-out: المشكلات نفسها منظّمةً بمسار الصفحة، كي ينسب بنّاء المدونة
+    # رابطًا مكسورًا في مقال إلى مقاله فيحجزه وحده.
+    if json_out is not None:
+        json_out.write_text(json.dumps(
+            [{"page": page.replace("\\", "/"), "message": message} for page, message in problems],
+            ensure_ascii=False, indent=2), encoding="utf-8")
 
     if not problems:
         print(f"  ✅ الروابط الداخلية سليمة — {checked} رابطًا إلى الموقع من {len(pages)} صفحة")
