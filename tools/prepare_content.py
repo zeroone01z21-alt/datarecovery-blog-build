@@ -573,19 +573,51 @@ def describe(details: dict[str, dict[str, object]]) -> list[str]:
     return lines
 
 
+def hold_broken(problems: dict[str, list[str]]) -> dict[str, list[str]]:
+    """يُخرج من النسخة المجهّزة كل مقال لا يجتاز عقد المحتوى، ويعيد سببه.
+
+    للمعاينة (preview.yml) وحدها: هي تبني كل شيء بما فيه المسودات، ومعها تُنشر
+    لوحة الكاتب نفسها. في 2026-11-14 أوقف مقال واحد فيه صورتان لم تُرفعا نشر
+    اللوحة الجديدة كلها، بعد أن صار الإنتاج يحجزه وحده (tools/build_blog.py).
+    هنا القاعدة نفسها بأبسط صورها: المقال المعطوب يغيب عن المعاينة مع تحذير
+    باسمه وسببه، والباقي واللوحة يُنشران. لا نسخة سابقة ولا جولات — المعاينة
+    للمراجعة لا للقارئ، وبلاغ الإنتاج يذكر المقال نفسه للكاتب.
+    """
+    from check_content import check_bundle, load_schema
+
+    held = {name: list(messages) for name, messages in problems.items()}
+    schema = load_schema()
+    for bundle in sorted(p for p in DESTINATION.iterdir() if p.is_dir() and not p.name.startswith(".")):
+        found = check_bundle(str(bundle), schema)
+        if found:
+            held.setdefault(bundle.name, []).extend(message for _, message in found)
+            shutil.rmtree(bundle)
+    return held
+
+
 def main() -> int:
-    if len(sys.argv) != 2:
-        print("  الاستخدام: prepare_content.py <content-source>")
+    args = [arg for arg in sys.argv[1:] if arg != "--hold-broken"]
+    lenient = "--hold-broken" in sys.argv[1:]
+    if len(args) != 1:
+        print("  الاستخدام: prepare_content.py <content-source> [--hold-broken]")
         return 2
     details: dict[str, dict[str, object]] = {}
+    problems: dict[str, list[str]] | None = {} if lenient else None
     try:
-        copied, archived = prepare(Path(sys.argv[1]), details=details)
+        copied, archived = prepare(Path(args[0]), problems=problems, details=details)
     except PrepareError as exc:
         print(f"  ❌ تجهيز المحتوى فشل: {exc}")
         return 1
     for note in describe(details):
         print(f"  ✏️  {note}")
-    print(f"  ✅ جُهّزت {copied} حزمة · استُبعدت {archived} حزمة مؤرشفة")
+    held = hold_broken(problems or {}) if lenient else {}
+    for name, messages in sorted(held.items()):
+        reason = " | ".join(messages)[:900]
+        print(f"::warning title=مقال مستبعد من المعاينة: {name}::{reason}")
+        print(f"  ⏸ «{name}» مستبعد: {reason}")
+    staged = copied - len([name for name in held if name not in (problems or {})])
+    print(f"  ✅ جُهّزت {staged} حزمة · استُبعدت {archived} حزمة مؤرشفة"
+          + (f" · {len(held)} مقال معطوب مستبعد" if held else ""))
     return 0
 
 
