@@ -464,7 +464,7 @@ class Builder:
             command.append(str(self.site_root))
         command += ["--json-out", str(out_file)]
         warn_file = self.scratch / f"{stage}-{self.rounds}-warnings.json"
-        if tool == "check_seo.py":
+        if tool in ("check_seo.py", "check_internal_links.py"):
             command += ["--warnings-out", str(warn_file)]
         rc, output = run(command)
         self.collect_warnings(stage, warn_file)
