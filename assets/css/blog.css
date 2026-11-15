@@ -520,7 +520,18 @@ html[dir="rtl"] .post-body li { line-height: 2; }
 .post-body ul,
 .post-body ol { margin: 0 0 1.2rem; padding-inline-start: 1.4rem; }
 .post-body li { margin-block-end: .4rem; }
-.post-body a { color: var(--orange-text); text-underline-offset: .18em; }
+/* رابط داخل النص يُميَّز بخطّ تحته لا باللون وحده (2026-11-15). CSS الموقع
+   يضع `a { text-decoration: none }` على كل رابط، فكان الرابط في الفقرة سماويًّا
+   فقط — وهذا ما خفّض «إمكانية الوصول» في صفحات المقالات إلى 96 في Lighthouse
+   (link-in-text-block): من لا يميّز الألوان لا يرى الرابط. الخطّ بسماكة 1px
+   كروابط النص في الموقع نفسه (إجابات الأسئلة الشائعة، صفحات الفدية). */
+.post-body a {
+  color: var(--orange-text);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: .18em;
+}
+.post-body a:hover { text-decoration-thickness: 2px; }
 .post-body blockquote {
   margin: 1.75rem 0;
   padding-inline-start: 1.2rem;

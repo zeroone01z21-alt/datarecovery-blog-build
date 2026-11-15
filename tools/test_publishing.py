@@ -524,6 +524,59 @@ class Attribution(Sandbox):
         self.assertEqual(len(orphans), 1)
 
 
+# ── الروابط في نصّ المقال (2026-11-15) ────────────────────────────────────
+class Links(unittest.TestCase):
+    def setUp(self) -> None:
+        import check_internal_links
+        self.links = check_internal_links
+        self.tmp = Path(tempfile.mkdtemp(prefix="links-test-"))
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.public, self.site = self.tmp / "public", self.tmp / "site"
+        for path in (self.site / "contact.html", self.site / "services" / "hdd.html",
+                     self.public / "ok" / "index.html"):
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("x", encoding="utf-8")
+
+    def page(self, body: str) -> None:
+        # مخرج Hugo بـ--minify: بلا تنصيص حيث يجوز، والهيكل حول المقال فيه روابط أيضًا.
+        html = ("<main><nav><a href=/nowhere.html>x</a></nav><article>"
+                f"<div class=post-body>{body}</div>"
+                "<p class=post-back><a href=/also-nowhere/>back</a></p></article></main>")
+        target = self.public / "post" / "index.html"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(html, encoding="utf-8")
+
+    def test_minified_body_links_are_found_and_chrome_is_ignored(self) -> None:
+        self.page("<p><a href=https://datarecovery-sa.com/contact.html>c</a></p>"
+                  "<div class=post-table><table><tr><td><a href=/services/hdd.html>h</a>"
+                  "</td></tr></table></div><p><a href=#x>x</a> <a href=mailto:a@b.c>m</a>"
+                  " <a href=https://example.com/>e</a></p>")
+        problems, warnings, checked = self.links.check(self.public, self.site)
+        self.assertEqual(checked, 2, "رابطا النص وحدهما؛ الهيكل والخارجي والبريد خارج الفحص")
+        self.assertEqual(problems, [])
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("مكتوبة كاملًا (عددها 1)", warnings[0][1])
+
+    def test_broken_site_link_holds_and_broken_blog_link_only_suggests(self) -> None:
+        self.page("<p><a href=/services/missing.html>m</a> <a href=/blog/gone/>g</a>"
+                  ' <a href="/blog/ok/">ok</a> <a href=/blog/ok>ok2</a></p>')
+        problems, warnings, _ = self.links.check(self.public, self.site)
+        self.assertEqual(problems, [("post/index.html",
+                                     "الرابط «/services/missing.html» لا يقابل أي صفحة في الموقع. "
+                                     "صحّحه أو احذفه، ثم احفظ.")])
+        self.assertEqual(len(warnings), 1, "مقال محجوز لا يحجز من يربط به")
+        self.assertIn("/blog/gone/", warnings[0][1])
+
+    def test_builder_collects_link_suggestions(self) -> None:
+        source = (TOOLS / "build_blog.py").read_text(encoding="utf-8")
+        self.assertIn('if tool in ("check_seo.py", "check_internal_links.py"):', source)
+
+    def test_links_in_text_are_underlined(self) -> None:
+        css = (ROOT / "assets" / "css" / "blog.css").read_text(encoding="utf-8")
+        rule = css.split(".post-body a {", 1)[1].split("}", 1)[0]
+        self.assertIn("text-decoration: underline", rule, "link-in-text-block في Lighthouse")
+
+
 # ── الحالة النهائية ──────────────────────────────────────────────────────
 class Classification(Sandbox):
     def test_statuses(self) -> None:
