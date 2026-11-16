@@ -524,6 +524,84 @@ class Attribution(Sandbox):
         self.assertEqual(len(orphans), 1)
 
 
+# ── تاريخ آخر تعديل من آخر حفظ (2026-11-16) ─────────────────────────────
+class AutoLastmod(Sandbox):
+    def lastmod(self, slug: str, lang: str = "ar") -> str:
+        front = build_blog.read_front(self.tmp / "content" / slug / f"index.{lang}.md")
+        return str(front.get("lastmod") or "")
+
+    def builder(self, repo: Path) -> build_blog.Builder:
+        b = build_blog.Builder(repo, None, self.tmp / "public", "hugo")
+        self.addCleanup(shutil.rmtree, b.scratch, True)
+        return b
+
+    def test_lastmod_follows_the_last_save_per_language(self) -> None:
+        repo = self.content_repo()
+        blog = repo / "content" / "blog"
+        write_bundle(blog, "two-lang", article("two-lang"))
+        write_bundle(blog, "two-lang", article("two-lang"), lang="en", files=())
+        git(repo, "add", "-A")
+        git(repo, "commit", "-q", "-m", "create", when="2026-09-02T10:00:00+03:00")
+        (blog / "two-lang" / "index.ar.md").write_text(
+            article("two-lang", body=BODY + "\nفقرة جديدة.\n"), encoding="utf-8")
+        git(repo, "commit", "-q", "-am", "edit arabic", when="2026-11-12T14:00:00+00:00")
+        prepare_content.prepare(repo / "content")
+        stamped = self.builder(repo).stamp_lastmod(self.tmp / "content" / "two-lang", "two-lang")
+        self.assertEqual(self.lastmod("two-lang", "ar"), "2026-11-12T17:00:00+03:00")
+        self.assertEqual(self.lastmod("two-lang", "en"), "2026-09-02T10:00:00+03:00",
+                         "تعديل العربية لا يحرّك تاريخ الإنجليزية")
+        self.assertEqual(len(stamped), 2)
+        self.assertNotIn("lastmod", (blog / "two-lang" / "index.ar.md").read_text(encoding="utf-8"),
+                         "ملف الكاتب لا يتغيّر")
+
+    def test_image_change_moves_both_and_newer_writer_value_stays(self) -> None:
+        repo = self.content_repo()
+        blog = repo / "content" / "blog"
+        write_bundle(blog, "img", article("img", extra='lastmod: "2026-12-01T09:00:00+03:00"\n'))
+        git(repo, "add", "-A")
+        git(repo, "commit", "-q", "-m", "create", when="2026-09-02T10:00:00+03:00")
+        (blog / "img" / "cover.webp").write_bytes(b"RIFF1111WEBP")
+        git(repo, "commit", "-q", "-am", "new cover", when="2026-11-01T10:00:00+03:00")
+        prepare_content.prepare(repo / "content")
+        self.assertEqual(self.builder(repo).stamp_lastmod(self.tmp / "content" / "img", "img"), [])
+        self.assertEqual(self.lastmod("img"), "2026-12-01T09:00:00+03:00", "قيمة الكاتب الأحدث تبقى")
+
+    def test_never_earlier_than_the_article_date(self) -> None:
+        index = self.tmp / "index.ar.md"
+        index.write_text(article("x", date="2026-11-10T19:45:00+03:00"), encoding="utf-8")
+        before = dt.datetime(2026, 11, 9, 12, 0, tzinfo=RIYADH)
+        self.assertIsNone(prepare_content.set_lastmod(index, before))
+        self.assertNotIn("lastmod", index.read_text(encoding="utf-8"))
+        after = dt.datetime(2026, 11, 15, 11, 5, tzinfo=dt.timezone.utc)
+        self.assertEqual(prepare_content.set_lastmod(index, after), "2026-11-15T14:05:00+03:00")
+        text = index.read_text(encoding="utf-8")
+        self.assertIn('date: "2026-11-10T19:45:00+03:00"\nlastmod: "2026-11-15T14:05:00+03:00"', text)
+        self.assertEqual(check_content.parse_front_matter(text)[0]["lastmod"], "2026-11-15T14:05:00+03:00")
+
+    def test_fallback_carries_its_own_save_time(self) -> None:
+        repo = self.content_repo()
+        blog = repo / "content" / "blog"
+        write_bundle(blog, "live-post", article("live-post"))
+        git(repo, "add", "-A")
+        git(repo, "commit", "-q", "-m", "good", when="2026-10-05T10:00:00+03:00")
+        (blog / "live-post" / "index.ar.md").write_text(article("live-post", body=BODY + "\n### \n"),
+                                                         encoding="utf-8")
+        git(repo, "commit", "-q", "-am", "broken", when="2026-11-14T10:00:00+03:00")
+        site = self.tmp / "site" / "blog" / "live-post"
+        site.mkdir(parents=True)
+        (site / "index.html").write_text("x", encoding="utf-8")
+        b = build_blog.Builder(repo, self.tmp / "site", self.tmp / "public", "hugo")
+        self.addCleanup(shutil.rmtree, b.scratch, True)
+        problems: dict = {}
+        details: dict = {}
+        prepare_content.prepare(repo / "content", problems=problems, details=details)
+        b.load_inventory(problems, details)
+        b.check_staged()
+        b.apply_holds()
+        self.assertEqual(self.lastmod("live-post"), "2026-10-05T10:00:00+03:00",
+                         "النسخة السابقة بتاريخ حفظها هي")
+
+
 # ── الروابط في نصّ المقال (2026-11-15) ────────────────────────────────────
 class Links(unittest.TestCase):
     def setUp(self) -> None:

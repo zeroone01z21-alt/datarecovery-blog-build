@@ -148,6 +148,59 @@ def normalize_dates(bundle: Path) -> list[str]:
     return notes
 
 
+# ── تاريخ آخر تعديل تلقائيًّا (2026-11-16) ──────────────────────────────
+#
+# lastmod هو ما يقرأ منه جوجل أن المقال تغيّر: <lastmod> في خريطة الموقع،
+# وdateModified وarticle:modified_time، وسطر «تحديث» تحت عنوان المقال. وكان
+# يأتي من حقل يملؤه الكاتب يدويًّا، فلم يملأه إلا في مقالين من عشرة: تعديل
+# عنوان «كيفية إزالة فيروس الفدية» في 12 نوفمبر بقي في الخريطة بتاريخ 4 نوفمبر.
+#
+# بنّاء المدونة يمرّر هنا لحظة آخر حفظ للملف (من تاريخ مستودع المحتوى)، فيُكتب
+# lastmod في النسخة المجهّزة إن كان أحدث مما فيها؛ ملف الكاتب لا يتغيّر،
+# وقيمة كتبها الكاتب أحدث من الحفظ تبقى كما هي.
+LASTMOD_LINE = re.compile(r"(?m)^lastmod:[ \t]*([\"']?)[^\"'\n]*\1[ \t]*$")
+DATE_KEY_LINE = re.compile(r"(?m)^date:.*$")
+
+
+def front_moment(value: object) -> datetime.datetime | None:
+    """قيمة date/lastmod من front matter لحظةً بتوقيت، أو None."""
+    if not isinstance(value, str) or not value.strip():
+        return None
+    raw = re.sub(r"([+-]\d{2})(\d{2})$", r"\1:\2", value.strip().replace("Z", "+00:00"))
+    try:
+        moment = datetime.datetime.fromisoformat(raw)
+    except ValueError:
+        return None
+    return moment if moment.tzinfo else moment.replace(tzinfo=RIYADH)
+
+
+def set_lastmod(index: Path, saved: datetime.datetime) -> str | None:
+    """يكتب lastmod = لحظة الحفظ إن كانت أحدث من lastmod وdate الحاليين.
+
+    يعيد القيمة المكتوبة، أو None إن لم يتغيّر شيء.
+    """
+    text = index.read_text(encoding="utf-8")
+    front = FRONT.match(text)
+    if not front:
+        return None
+    data, _ = parse_front_matter(text)
+    known = [m for m in (front_moment((data or {}).get("lastmod")),
+                         front_moment((data or {}).get("date"))) if m is not None]
+    if known and saved <= max(known):
+        return None
+    value = saved.astimezone(RIYADH).replace(microsecond=0).isoformat()
+    block = front.group(1)
+    line = f'lastmod: "{value}"'
+    if LASTMOD_LINE.search(block):
+        block = LASTMOD_LINE.sub(line, block, count=1)
+    elif DATE_KEY_LINE.search(block):
+        block = DATE_KEY_LINE.sub(lambda m: m.group(0) + "\n" + line, block, count=1)
+    else:
+        block = block + "\n" + line
+    index.write_text(text[:front.start(1)] + block + text[front.end(1):], encoding="utf-8")
+    return value
+
+
 ATX_H1 = re.compile(r"^#[ \t]+(?P<text>\S.*?)[ \t]*#*[ \t]*$")
 FENCE = re.compile(r"^[ \t]{0,3}(?:```+|~~~+)")
 
