@@ -117,7 +117,7 @@ collections:
         label: "تاريخ آخر تعديل"
         required: false
         i18n: "duplicate"
-        hint: "حدّثه عند تعديل مقال منشور. اتركه فارغًا للمقال الجديد."
+        hint: "لا حاجة لتعبئته: يُحسب تلقائيًا من وقت آخر حفظ للمقال، ومنه يعرف جوجل أن المقال تغيّر."
         widget: "datetime"
         format: "YYYY-MM-DDTHH:mm:ssZ"
         date_format: "YYYY-MM-DD"

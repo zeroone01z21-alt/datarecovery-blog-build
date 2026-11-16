@@ -81,7 +81,7 @@ def riyadh(value: str | None) -> str:
     if not value:
         return "؟"
     try:
-        moment = dt.datetime.fromisoformat(value)
+        moment = dt.datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
     except ValueError:
         return value
     if moment.tzinfo is None:

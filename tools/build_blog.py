@@ -82,8 +82,10 @@ def now_riyadh() -> dt.datetime:
 
 
 def parse_date(value: object) -> dt.datetime | None:
+    # git يكتب لحظة UTC بـ«Z» (حفظ اللوحة عبر GitHub دائمًا UTC)، وfromisoformat
+    # قبل بايثون 3.11 يرفضها؛ فتُسوّى هنا بدل الاتّكال على نسخة المفسّر.
     try:
-        parsed = dt.datetime.fromisoformat(str(value))
+        parsed = dt.datetime.fromisoformat(str(value).strip().replace("Z", "+00:00"))
     except ValueError:
         return None
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=RIYADH)
@@ -302,6 +304,36 @@ class Builder:
                 )
             shutil.copytree(art.fallback_dir, destination)
 
+    # ── تاريخ آخر تعديل من آخر حفظ ────────────────────────────────────
+    def saved_time(self, slug: str, index_name: str, ref: str = "HEAD") -> dt.datetime | None:
+        """لحظة آخر حفظ مسّ نصّ هذه الترجمة أو صور المقال، حتى ref.
+
+        نصّ ترجمة لا يغيّر lastmod الأخرى؛ وصورة في الحزمة تخصّ الترجمتين.
+        """
+        base = f"{SOURCE_BUNDLES}/{slug}"
+        moments = []
+        for spec in ([f"{base}/{index_name}"], [base, f":(exclude){base}/*.md"]):
+            try:
+                out = git(self.source, "log", "-1", "--format=%cI", ref, "--", *spec).strip()
+            except (OSError, subprocess.CalledProcessError):
+                continue
+            moment = parse_date(out) if out else None
+            if moment is not None:
+                moments.append(moment)
+        return max(moments) if moments else None
+
+    def stamp_lastmod(self, bundle: Path, slug: str, ref: str = "HEAD") -> list[str]:
+        """يكتب lastmod في النسخة المجهّزة من تاريخ مستودع المحتوى (انظر prepare_content)."""
+        stamped = []
+        for index in sorted(bundle.glob("index.*.md")):
+            saved = self.saved_time(slug, index.name, ref)
+            if saved is None:
+                continue
+            value = prepare_content.set_lastmod(index, saved)
+            if value:
+                stamped.append(f"{index.name.split('.')[1]}:{value}")
+        return stamped
+
     def history(self, slug: str) -> list[tuple[str, str]]:
         out = git(self.source, "log", "--format=%H%x09%cI", "HEAD", "--",
                   f"{SOURCE_BUNDLES}/{slug}")
@@ -360,6 +392,8 @@ class Builder:
             except prepare_content.BundleProblem:
                 continue
             prepare_content.stage_bundle(exported, staged)
+            # النسخة السابقة تُنشر بتاريخ حفظها هي، لا بتاريخ التعديل المحجوز.
+            self.stamp_lastmod(staged, art.slug, commit)
             fronts = [read_front(p) for p in sorted(staged.glob("index.*.md"))]
             if not fronts or any(f.get("archived") for f in fronts):
                 continue
@@ -551,6 +585,11 @@ class Builder:
         for line in prepare_content.describe(details):
             print(f"  ✏️  {line}")
         self.load_inventory(prepare_problems, details)
+        for name in sorted(self.built_slugs()):
+            stamped = self.stamp_lastmod(CONTENT / name, name)
+            if stamped and name in self.articles:
+                self.articles[name].notes.extend(f"lastmod:{item}" for item in stamped)
+                print(f"  🕒 «{name}» تاريخ آخر تعديل من آخر حفظ: " + "، ".join(stamped))
         self.check_staged()
         for art in self.held():
             print(f"  ⏸ «{art.slug}» محجوز: " + " | ".join(p["message"] for p in art.problems))
