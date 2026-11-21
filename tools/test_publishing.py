@@ -1019,5 +1019,32 @@ class Contracts(unittest.TestCase):
             self.assertIn("[tableLabel]", (ROOT / "i18n" / f"{lang}.toml").read_text(encoding="utf-8"))
 
 
+class WriterLanguages(unittest.TestCase):
+    """كل لغة مجموعة مستقلة في اللوحة، فلا تُفرض العربية على مقال إنجليزي (2026-11-21)."""
+
+    def test_each_language_is_its_own_collection(self):
+        import generate_cms
+        schema = generate_cms.load_json(str(ROOT / "controls" / "schema.json"))
+        collections = generate_cms.build_config(schema, {
+            "backend_repo": "o/r", "backend_branch": "main",
+            "oauth_base_url": generate_cms.OAUTH_PLACEHOLDER,
+        })["collections"]
+        self.assertEqual([c["name"] for c in collections], ["posts_ar", "posts_en"])
+        for lang, collection in zip(("ar", "en"), collections):
+            self.assertEqual(collection["path"], "{{slug}}/index." + lang)
+            self.assertNotIn("i18n", collection)
+            self.assertFalse([f["name"] for f in collection["fields"] if "i18n" in f])
+
+    def test_checker_rejects_a_shared_i18n_collection(self):
+        import check_cms
+        import generate_cms
+        schema = generate_cms.load_json(str(ROOT / "controls" / "schema.json"))
+        folder = generate_cms.bundle_locations(schema)[0]
+        posts = generate_cms.post_collection("en", folder, schema)
+        self.assertEqual(check_cms.collection_problems(posts, "en", schema, folder), [])
+        posts["i18n"] = True
+        self.assertTrue(check_cms.collection_problems(posts, "en", schema, folder))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

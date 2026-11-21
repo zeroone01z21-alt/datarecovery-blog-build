@@ -177,7 +177,9 @@
     (entry.p || []).forEach(function (problem) {
       if (HINTS[problem[0]] && hints.indexOf(HINTS[problem[0]]) < 0) hints.push(HINTS[problem[0]]);
     });
-    // مجموعة واحدة «posts» بلغتين (لا مجموعة لكل لغة كما في مدونة zero2one.sa).
+    // مجموعة لكل لغة (posts_ar / posts_en) منذ 2026-11-21: مقال بلغة واحدة
+    // يُفتح في مجموعته، وثنائي اللغة في العربية.
+    var lang = (entry.l || []).indexOf("ar") >= 0 || !(entry.l || []).length ? "ar" : "en";
     return el("div", { "class": "item" }, [
       el("strong", { text: entry.n || entry.s }),
       el("span", { "class": "slug", text: entry.s }),
@@ -185,8 +187,8 @@
       lines.length ? el("ul", {}, lines) : null,
       hints.length ? el("div", { "class": "line muted", text: hints.join(" ") }) : null,
       entry.st === "scheduled" ? null : el("a", {
-        href: "#/collections/posts",
-        text: "افتح المقالات لإصلاحه ←"
+        href: "#/collections/posts_" + lang,
+        text: lang === "ar" ? "افتح المقالات العربية لإصلاحه ←" : "افتح المقالات الإنجليزية لإصلاحه ←"
       })
     ]);
   }
