@@ -285,6 +285,55 @@ def build_fields(schema: dict[str, Any]) -> list[dict[str, Any]]:
     return fields
 
 
+LANG_LABELS = {
+    "ar": ("المقالات العربية", "مقال عربي"),
+    "en": ("المقالات الإنجليزية", "مقال إنجليزي"),
+}
+
+
+def post_collection(lang: str, collection_folder: str, schema: dict[str, Any]) -> dict[str, Any]:
+    """مجموعة تحريرية للغة واحدة (2026-11-21).
+
+    مجموعة i18n واحدة لا تنشر مقالًا إنجليزيًّا وحده: Sveltia تُبقي
+    default_locale (العربية هنا) مفعّلة ولا تتيح تعطيلها — رابط توثيقها نفسه
+    ‏«disabling-non-default-locale-content» — فكان الكاتب يُطالَب بنسخة عربية
+    ليحفظ. مجموعتان مستقلّتان تجعلان كل لغة اختيارية في الاتجاهين. الحلّ
+    نفسه يعمل في مدونة zero2one.sa منذ 2026-09-11.
+
+    والتصفية تعمل لأن Sveltia تبني regex من `path` وتطابق به أسماء الملفات،
+    فـ«{{slug}}/index.ar» لا يلتقط index.en.md ولا العكس.
+
+    والمجلد واحد للاثنتين عمدًا: حزمة صفحة Hugo واحدة لكل مقال، فالمقال
+    ثنائي اللغة يُنشأ مرّتين بنفس الـslug فيلتقي ملفّاه في المجلد نفسه
+    وتُزاوجهما Hugo تلقائيًّا كما اليوم. والبناء كان يدعم أحاديّ اللغة أصلًا:
+    head.html يُصدر hreflang ذاتيًّا ولا يضع x-default إلا مع نسخة عربية.
+    """
+    label, singular = LANG_LABELS[lang]
+    fields = [
+        {key: value for key, value in field.items() if key != "i18n"}
+        for field in build_fields(schema)
+    ]
+    return {
+        "name": f"posts_{lang}",
+        "label": label,
+        "label_singular": singular,
+        "icon": "article",
+        "folder": collection_folder,
+        "path": "{{slug}}/index." + lang,
+        "slug": "{{fields.slug}}",
+        "identifier_field": "title",
+        "format": "yaml-frontmatter",
+        "extension": "md",
+        "media_folder": "",
+        "public_folder": "",
+        "create": True,
+        "delete": False,
+        "duplicate": False,
+        "summary": "{{title}} · {{categories}}",
+        "fields": fields,
+    }
+
+
 def build_config(schema: dict[str, Any], settings: dict[str, Any]) -> dict[str, Any]:
     languages = schema["languages"]
     fields = schema["fields"]
@@ -301,16 +350,11 @@ def build_config(schema: dict[str, Any], settings: dict[str, Any]) -> dict[str, 
         "i18n": {
             "structure": "multiple_files",
             "locales": languages["available"],
+            # لا مجموعة تشترك في i18n بعد الآن — لكل لغة مجموعتها (post_collection).
+            # تبقى هذه الكتلة تعريفًا للّغات يفحصه check_cms، ولا تحكم سلوك المحرّر.
+            # ولا بوّابة تعترض على مقال بلغة واحدة: check_content لا تشترط لغة
+            # بعينها، وفحص hreflang في check_seo يتحقّق من البدائل الموجودة فقط.
             "default_locale": languages["default"],
-            # "all" كان يفتح اللغتين معًا في كل مقال جديد، فيصير على الكاتب
-            # تعبئة الإنجليزية ليتمكّن من الحفظ — وهو خلاف ما ينصّ عليه دليله
-            # نفسه من أن الإنجليزية اختيارية. "default" يفتح العربية وحدها،
-            # ويترك مفتاح الإنجليزية في المحرّر لمن أراد ترجمة.
-            #
-            # ولا بوّابة تعترض: check_content لا تشترط index.en.md، وفحص
-            # hreflang في check_seo يتحقّق من البدائل الموجودة فقط ولا يطالب
-            # بنسخة ثانية. ومقال عربي وحده يخرج بـar وx-default متطابقين.
-            "initial_locales": "default",
         },
         "slug": {
             "encoding": "ascii",
@@ -339,26 +383,8 @@ def build_config(schema: dict[str, Any], settings: dict[str, Any]) -> dict[str, 
             }
         },
         "collections": [
-            {
-                "name": "posts",
-                "label": "المقالات",
-                "label_singular": "مقال",
-                "icon": "article",
-                "folder": collection_folder,
-                "path": "{{slug}}/index",
-                "slug": "{{fields.slug}}",
-                "identifier_field": "title",
-                "format": "yaml-frontmatter",
-                "extension": "md",
-                "media_folder": "",
-                "public_folder": "",
-                "i18n": True,
-                "create": True,
-                "delete": False,
-                "duplicate": False,
-                "summary": "{{title}} · {{categories}} · {{locales}}",
-                "fields": build_fields(schema),
-            }
+            post_collection(lang, collection_folder, schema)
+            for lang in languages["available"]
         ],
     }
 
@@ -409,15 +435,17 @@ def guide_text(schema: dict[str, Any]) -> str:
 
 ## 2. إنشاء مقال جديد
 
-1. اختر **المقالات** ثم **مقال جديد**.
-2. ابدأ بالإنجليزية، ثم بدّل اللغة من أعلى المحرر إلى العربية. اللغتان ملفان
-   مرتبطان للمقال نفسه، ويجب إكمال الحقول المطلوبة في كلتيهما.
+1. اختر **المقالات العربية** أو **المقالات الإنجليزية**، ثم **مقال جديد**.
+   كل لغة مستقلة: يمكنك نشر مقال بالعربية وحدها أو بالإنجليزية وحدها.
+2. لمقال باللغتين: أنشئه في القسم الأول، ثم أنشئه في القسم الثاني
+   **بالرابط القصير نفسه حرفيًّا**. الرابط المتطابق هو ما يربط النسختين،
+   فيظهر زر تبديل اللغة بينهما على الموقع. رابط مختلف = مقالان منفصلان.
 3. اكتب العنوان والوصف والرابط القصير. الرابط حروف إنجليزية صغيرة وأرقام
    وشرطات فقط، مثل `why-ad-campaigns-fail`.
 4. لا تغيّر الرابط بعد أول نشر. إذا كان تغييره ضروريًا أرسل الرابط القديم
    والجديد إلى المالك قبل الحفظ، لأن الزوار يحتاجون تحويلًا دائمًا.
 5. اختر تصنيفًا واحدًا على الأقل، وارفع صورة مشاركة، ثم اكتب وصف الصورة.
-6. اكتب نص المقال بعناوين فرعية واضحة، وراجعه في اللغتين قبل النشر.
+6. اكتب نص المقال بعناوين فرعية واضحة، وراجعه قبل النشر.
 
 **الجداول:** اللوحة بلا زرّ جدول، فاكتبه في وضع Markdown (النصّ الخام):
 صفّ في كل سطر، والخانات بين خطوط `|`، وتحت سطر العناوين سطر شرطات بعدد
@@ -443,6 +471,9 @@ def guide_text(schema: dict[str, Any]) -> str:
 
 ابدأ دائمًا بمسودة. الأرشفة هي بديل الحذف؛ لا يوجد زر حذف في اللوحة. إذا
 أرشفت مقالًا بالخطأ، أعد المفتاح إلى «نشط» واحفظه.
+
+في المقال باللغتين: الأرشفة للنسختين معًا. أرشِف العربية والإنجليزية كلتيهما
+(أو أعِدهما كلتيهما)، وإلا حُجز المقال حتى تتطابقا.
 
 ## 4. الصور
 
@@ -471,7 +502,7 @@ def guide_text(schema: dict[str, Any]) -> str:
 
 1. أثناء الكتابة اترك الحالة **مسودة** والأرشفة **نشط**، ثم احفظ.
 2. بعد أن يفعّل المالك موقع المعاينة، انتظر دقيقتين إلى خمس دقائق وافتح رابط
-   المعاينة. راجع الهاتف والكمبيوتر واللغتين والصورة والروابط.
+   المعاينة. راجع الهاتف والكمبيوتر وكل لغة كتبتها والصورة والروابط.
 3. عندما تصبح النسختان جاهزتين، بدّل حالة النشر إلى **منشور** واترك الأرشفة
    **نشط** ثم احفظ.
 4. خلال دقائق يظهر المقال على [المدونة الحية](https://datarecovery-sa.com/blog/).

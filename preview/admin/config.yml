@@ -15,7 +15,6 @@ i18n:
     - "ar"
     - "en"
   default_locale: "ar"
-  initial_locales: "default"
 slug:
   encoding: "ascii"
   sanitize_replacement: "-"
@@ -43,57 +42,51 @@ media_libraries:
         height: 1600
 collections:
   -
-    name: "posts"
-    label: "المقالات"
-    label_singular: "مقال"
+    name: "posts_ar"
+    label: "المقالات العربية"
+    label_singular: "مقال عربي"
     icon: "article"
     folder: "content/blog"
-    path: "{{slug}}/index"
+    path: "{{slug}}/index.ar"
     slug: "{{fields.slug}}"
     identifier_field: "title"
     format: "yaml-frontmatter"
     extension: "md"
     media_folder: ""
     public_folder: ""
-    i18n: true
     create: true
     delete: false
     duplicate: false
-    summary: "{{title}} · {{categories}} · {{locales}}"
+    summary: "{{title}} · {{categories}}"
     fields:
       -
         name: "title"
         label: "عنوان المقال"
         required: true
-        i18n: true
         hint: "المستحسن بين 10 و70 حرفًا، والخروج عنه لا يمنع النشر."
         widget: "string"
       -
         name: "meta_title"
         label: "عنوان محركات البحث (اختياري)"
         required: false
-        i18n: true
         hint: "اتركه فارغًا وسيُستخدم عنوان المقال. املأه حين تريد عنوانًا مختلفًا في نتائج البحث — يظهر كما تكتبه بلا إضافة، وجوجل يقصّ عند نحو 60 محرفًا. المستحسن بين 10 و70 حرفًا، والخروج عنه لا يمنع النشر."
         widget: "string"
       -
         name: "description"
         label: "الوصف الذي يظهر في نتائج البحث"
         required: true
-        i18n: true
         hint: "المستحسن بين 50 و160 حرفًا، والخروج عنه لا يمنع النشر."
         widget: "string"
       -
         name: "focus_keyword"
         label: "الكلمة المفتاحية المستهدفة"
         required: false
-        i18n: true
         hint: "الاستعلام الذي تريد أن يجدك القارئ به، بلغة المقال نفسه. اختياري: حين تملؤه يقترح عليك النظام في «بلاغات النشر» ما يُستحسن (وروده في العنوان والوصف والفقرة الأولى، وألّا يستهدفه مقال آخر)، والمقال يُنشر عاديًا في كل الأحوال. المستحسن بين 3 و60 حرفًا، والخروج عنه لا يمنع النشر."
         widget: "string"
       -
         name: "slug"
         label: "الرابط القصير بالإنجليزية"
         required: true
-        i18n: "duplicate"
         hint: "استخدم حروفًا إنجليزية صغيرة وأرقامًا وشرطات. لا تغيّره بعد أول نشر؛ تغيير الرابط يحتاج تحويل 301 من المالك."
         maxlength: 60
         pattern:
@@ -104,7 +97,6 @@ collections:
         name: "date"
         label: "تاريخ النشر"
         required: true
-        i18n: "duplicate"
         hint: "يُملأ تلقائيًا عند إنشاء المقال. عدّله فقط عند جدولة تاريخ النشر."
         widget: "datetime"
         format: "YYYY-MM-DDTHH:mm:ssZ"
@@ -116,7 +108,6 @@ collections:
         name: "lastmod"
         label: "تاريخ آخر تعديل"
         required: false
-        i18n: "duplicate"
         hint: "لا حاجة لتعبئته: يُحسب تلقائيًا من وقت آخر حفظ للمقال، ومنه يعرف جوجل أن المقال تغيّر."
         widget: "datetime"
         format: "YYYY-MM-DDTHH:mm:ssZ"
@@ -127,7 +118,6 @@ collections:
         name: "draft"
         label: "حالة النشر"
         required: true
-        i18n: "duplicate"
         hint: "مفعّل = مسودة لا تظهر في الموقع الحي. غير مفعّل = منشور، ما دام مفتاح الأرشفة غير مفعّل."
         widget: "boolean"
         default: true
@@ -137,7 +127,6 @@ collections:
         name: "archived"
         label: "أرشفة المقال"
         required: false
-        i18n: "duplicate"
         hint: "فعّله لإخفاء المقال مع إبقائه محفوظًا. الأرشفة هي بديل الحذف."
         widget: "boolean"
         default: false
@@ -147,7 +136,6 @@ collections:
         name: "categories"
         label: "التصنيفات"
         required: true
-        i18n: "duplicate"
         hint: "اختر تصنيفًا واحدًا على الأقل. الأسماء ثابتة وتُعرض للزائر بلغته."
         widget: "select"
         multiple: true
@@ -175,7 +163,6 @@ collections:
         name: "featured_image"
         label: "صورة المشاركة"
         required: true
-        i18n: true
         hint: "ارفع صورة من جهازك. تُحفظ داخل مجلد المقال وتُضغط في المتصفح؛ الروابط الخارجية معطلة."
         widget: "image"
         choose_url: false
@@ -185,7 +172,6 @@ collections:
         name: "featured_image_alt"
         label: "وصف صورة المشاركة"
         required: true
-        i18n: true
         hint: "اكتب ما يظهر في الصورة بجملة قصيرة مفيدة، من دون «صورة لـ»."
         minlength: 1
         widget: "string"
@@ -194,7 +180,157 @@ collections:
         label: "نص المقال"
         widget: "richtext"
         required: true
-        i18n: true
+        hint: "ابدأ الأقسام بعنوان «مستوى 2». الرابط الداخلي يُكتب نسبيًّا: /services/hdd.html"
+        buttons:
+          - "bold"
+          - "italic"
+          - "code"
+          - "heading-two"
+          - "heading-three"
+          - "heading-four"
+          - "bulleted-list"
+          - "numbered-list"
+          - "quote"
+          - "link"
+  -
+    name: "posts_en"
+    label: "المقالات الإنجليزية"
+    label_singular: "مقال إنجليزي"
+    icon: "article"
+    folder: "content/blog"
+    path: "{{slug}}/index.en"
+    slug: "{{fields.slug}}"
+    identifier_field: "title"
+    format: "yaml-frontmatter"
+    extension: "md"
+    media_folder: ""
+    public_folder: ""
+    create: true
+    delete: false
+    duplicate: false
+    summary: "{{title}} · {{categories}}"
+    fields:
+      -
+        name: "title"
+        label: "عنوان المقال"
+        required: true
+        hint: "المستحسن بين 10 و70 حرفًا، والخروج عنه لا يمنع النشر."
+        widget: "string"
+      -
+        name: "meta_title"
+        label: "عنوان محركات البحث (اختياري)"
+        required: false
+        hint: "اتركه فارغًا وسيُستخدم عنوان المقال. املأه حين تريد عنوانًا مختلفًا في نتائج البحث — يظهر كما تكتبه بلا إضافة، وجوجل يقصّ عند نحو 60 محرفًا. المستحسن بين 10 و70 حرفًا، والخروج عنه لا يمنع النشر."
+        widget: "string"
+      -
+        name: "description"
+        label: "الوصف الذي يظهر في نتائج البحث"
+        required: true
+        hint: "المستحسن بين 50 و160 حرفًا، والخروج عنه لا يمنع النشر."
+        widget: "string"
+      -
+        name: "focus_keyword"
+        label: "الكلمة المفتاحية المستهدفة"
+        required: false
+        hint: "الاستعلام الذي تريد أن يجدك القارئ به، بلغة المقال نفسه. اختياري: حين تملؤه يقترح عليك النظام في «بلاغات النشر» ما يُستحسن (وروده في العنوان والوصف والفقرة الأولى، وألّا يستهدفه مقال آخر)، والمقال يُنشر عاديًا في كل الأحوال. المستحسن بين 3 و60 حرفًا، والخروج عنه لا يمنع النشر."
+        widget: "string"
+      -
+        name: "slug"
+        label: "الرابط القصير بالإنجليزية"
+        required: true
+        hint: "استخدم حروفًا إنجليزية صغيرة وأرقامًا وشرطات. لا تغيّره بعد أول نشر؛ تغيير الرابط يحتاج تحويل 301 من المالك."
+        maxlength: 60
+        pattern:
+          - "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          - "الرابط يجب أن يكون حروفاً إنجليزية صغيرة وأرقاماً وشرطات فقط، مثل: why-ad-campaigns-fail"
+        widget: "string"
+      -
+        name: "date"
+        label: "تاريخ النشر"
+        required: true
+        hint: "يُملأ تلقائيًا عند إنشاء المقال. عدّله فقط عند جدولة تاريخ النشر."
+        widget: "datetime"
+        format: "YYYY-MM-DDTHH:mm:ssZ"
+        date_format: "YYYY-MM-DD"
+        time_format: "HH:mm"
+        picker_utc: false
+        default: "{{now}}"
+      -
+        name: "lastmod"
+        label: "تاريخ آخر تعديل"
+        required: false
+        hint: "لا حاجة لتعبئته: يُحسب تلقائيًا من وقت آخر حفظ للمقال، ومنه يعرف جوجل أن المقال تغيّر."
+        widget: "datetime"
+        format: "YYYY-MM-DDTHH:mm:ssZ"
+        date_format: "YYYY-MM-DD"
+        time_format: "HH:mm"
+        picker_utc: false
+      -
+        name: "draft"
+        label: "حالة النشر"
+        required: true
+        hint: "مفعّل = مسودة لا تظهر في الموقع الحي. غير مفعّل = منشور، ما دام مفتاح الأرشفة غير مفعّل."
+        widget: "boolean"
+        default: true
+        before_input: "منشور"
+        after_input: "مسودة"
+      -
+        name: "archived"
+        label: "أرشفة المقال"
+        required: false
+        hint: "فعّله لإخفاء المقال مع إبقائه محفوظًا. الأرشفة هي بديل الحذف."
+        widget: "boolean"
+        default: false
+        before_input: "نشط"
+        after_input: "مؤرشف"
+      -
+        name: "categories"
+        label: "التصنيفات"
+        required: true
+        hint: "اختر تصنيفًا واحدًا على الأقل. الأسماء ثابتة وتُعرض للزائر بلغته."
+        widget: "select"
+        multiple: true
+        min: 1
+        options:
+          -
+            label: "Hard Drives — الأقراص الصلبة"
+            value: "hard-drives"
+          -
+            label: "SSD & NVMe — أقراص SSD وNVMe"
+            value: "ssd-nvme"
+          -
+            label: "RAID & Server Articles — مقالات RAID والخوادم"
+            value: "raid-servers"
+          -
+            label: "Ransomware & Encryption — فيروس الفدية والتشفير"
+            value: "ransomware"
+          -
+            label: "Phones & Memory Cards — الهواتف وبطاقات الذاكرة"
+            value: "phones-and-cards"
+          -
+            label: "Backup & Data Protection — النسخ الاحتياطي وحماية البيانات"
+            value: "data-protection"
+      -
+        name: "featured_image"
+        label: "صورة المشاركة"
+        required: true
+        hint: "ارفع صورة من جهازك. تُحفظ داخل مجلد المقال وتُضغط في المتصفح؛ الروابط الخارجية معطلة."
+        widget: "image"
+        choose_url: false
+        multiple: false
+        accept: "image/webp,image/avif,image/jpeg,image/png,image/gif,image/bmp,image/tiff"
+      -
+        name: "featured_image_alt"
+        label: "وصف صورة المشاركة"
+        required: true
+        hint: "اكتب ما يظهر في الصورة بجملة قصيرة مفيدة، من دون «صورة لـ»."
+        minlength: 1
+        widget: "string"
+      -
+        name: "body"
+        label: "نص المقال"
+        widget: "richtext"
+        required: true
         hint: "ابدأ الأقسام بعنوان «مستوى 2». الرابط الداخلي يُكتب نسبيًّا: /services/hdd.html"
         buttons:
           - "bold"

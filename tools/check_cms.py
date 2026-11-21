@@ -82,6 +82,56 @@ def panel_problems(index: str) -> list[str]:
     return found
 
 
+def collection_problems(posts: dict, lang: str, schema: dict, collection_folder: str) -> list[str]:
+    """القواعد نفسها لمجموعة كل لغة: الحذف والنسخ معطّلان، المسار، الصور، والحقول."""
+    problems: list[str] = []
+    if posts.get("i18n"):
+        problems.append("مجموعة اللغة لا تشترك في i18n — وإلا عادت العربية إلزامية")
+    if posts.get("delete") is not False:
+        problems.append("زر حذف المقالات غير معطل")
+    if posts.get("duplicate") is not False:
+        problems.append("نسخ المقالات غير معطل")
+    if posts.get("folder") != collection_folder or posts.get("path") != "{{slug}}/index." + lang:
+        problems.append("مسار حزمة Hugo غير صحيح")
+    if posts.get("media_folder") != "" or posts.get("public_folder") != "":
+        problems.append("صور المقال يجب أن تبقى داخل حزمة Hugo وبمسار نسبي")
+
+    fields = {field.get("name"): field for field in posts.get("fields", [])}
+    expected_names = set(schema["fields"]) | {"body"}
+    if set(fields) != expected_names:
+        problems.append("حقول المقال لا تطابق schema.json + body")
+    for name, rule in schema["fields"].items():
+        field = fields.get(name, {})
+        if "i18n" in field:
+            problems.append(f"الحقل {name} يحمل i18n داخل مجموعة لغة واحدة")
+        if field.get("required") != bool(rule.get("required", False)):
+            problems.append(f"required للحقل {name} لا يطابق المخطط")
+        if rule.get("advisory_length"):
+            # حدّ اقتراحي: وجوده في اللوحة يمنع الحفظ، وهو ما أُلغي عمدًا (2026-11).
+            if "minlength" in field or "maxlength" in field:
+                problems.append(f"الحقل {name} حدّه اقتراحي ولا يجوز أن يمنع الحفظ")
+        else:
+            if "min_length" in rule and field.get("minlength") != rule["min_length"]:
+                problems.append(f"minlength للحقل {name} لا يطابق المخطط")
+            if "max_length" in rule and field.get("maxlength") != rule["max_length"]:
+                problems.append(f"maxlength للحقل {name} لا يطابق المخطط")
+        if rule.get("pattern") and field.get("pattern", [None])[0] != rule["pattern"]:
+            problems.append(f"pattern للحقل {name} لا يطابق المخطط")
+
+    category = fields.get("categories", {})
+    expected_slugs = [item["slug"] for item in schema["categories"]["items"]]
+    actual_slugs = [item.get("value") for item in category.get("options", [])]
+    if actual_slugs != expected_slugs or not category.get("multiple"):
+        problems.append("قائمة التصنيفات لا تطابق slugs المخطط")
+    if category.get("min") != schema["fields"]["categories"].get("min_items"):
+        problems.append("الحد الأدنى للتصنيفات لا يطابق المخطط")
+    if fields.get("featured_image", {}).get("choose_url") is not False:
+        problems.append("اختيار صورة من رابط خارجي غير معطل")
+    if fields.get("featured_image_alt", {}).get("required") is not True:
+        problems.append("النص البديل للصورة غير إلزامي")
+    return problems
+
+
 def main() -> int:
     problems: list[str] = []
     try:
@@ -141,7 +191,7 @@ def main() -> int:
     # ZZ في Day.js تكتب الإزاحة بلا نقطتين (+0300)، وهي صيغة يرفضها
     # check_content وHugo معًا فتوقف كل نشر. حدث مرّتين — 2026-08-18
     # و2026-09-06 — ولذلك صار حارسًا بدل أن يُصلَح مرّة ثالثة.
-    for field in config.get("collections", [{}])[0].get("fields", []):
+    for field in (f for c in config.get("collections", []) for f in c.get("fields", [])):
         if field.get("widget") != "datetime":
             continue
         fmt = field.get("format", "")
@@ -157,51 +207,20 @@ def main() -> int:
     if config.get("public_folder") != public_folder:
         problems.append("مسار الوسائط العام لا يطابق مسار المدونة")
 
+    # مجموعة لكل لغة — لا مجموعة i18n واحدة (2026-11-21).
+    #
+    # ‏Sveltia لا تتيح تعطيل default_locale، فمجموعة i18n واحدة تفرض العربية
+    # على كل مقال ولا يُحفظ مقال إنجليزي وحده. المجموعتان تحرّران الاتجاهين،
+    # وهذا الحارس يفرض القواعد نفسها على كلٍّ منهما بلا تخفيف.
     collections = config.get("collections", [])
-    if len(collections) != 1 or collections[0].get("name") != "posts":
-        problems.append("يجب أن تكون posts المجموعة التحريرية الوحيدة")
+    languages = schema["languages"]["available"]
+    expected_collections = [f"posts_{lang}" for lang in languages]
+    if [c.get("name") for c in collections] != expected_collections:
+        problems.append("المجموعات التحريرية يجب أن تكون " + " و".join(expected_collections))
     else:
-        posts = collections[0]
-        if posts.get("delete") is not False:
-            problems.append("زر حذف المقالات غير معطل")
-        if posts.get("duplicate") is not False:
-            problems.append("نسخ المقالات غير معطل")
-        if posts.get("folder") != collection_folder or posts.get("path") != "{{slug}}/index":
-            problems.append("مسار حزمة Hugo غير صحيح")
-        if posts.get("media_folder") != "" or posts.get("public_folder") != "":
-            problems.append("صور المقال يجب أن تبقى داخل حزمة Hugo وبمسار نسبي")
-
-        fields = {field.get("name"): field for field in posts.get("fields", [])}
-        expected_names = set(schema["fields"]) | {"body"}
-        if set(fields) != expected_names:
-            problems.append("حقول المقال لا تطابق schema.json + body")
-        for name, rule in schema["fields"].items():
-            field = fields.get(name, {})
-            if field.get("required") != bool(rule.get("required", False)):
-                problems.append(f"required للحقل {name} لا يطابق المخطط")
-            if rule.get("advisory_length"):
-                # حدّ اقتراحي: وجوده في اللوحة يمنع الحفظ، وهو ما أُلغي عمدًا (2026-11).
-                if "minlength" in field or "maxlength" in field:
-                    problems.append(f"الحقل {name} حدّه اقتراحي ولا يجوز أن يمنع الحفظ")
-            else:
-                if "min_length" in rule and field.get("minlength") != rule["min_length"]:
-                    problems.append(f"minlength للحقل {name} لا يطابق المخطط")
-                if "max_length" in rule and field.get("maxlength") != rule["max_length"]:
-                    problems.append(f"maxlength للحقل {name} لا يطابق المخطط")
-            if rule.get("pattern") and field.get("pattern", [None])[0] != rule["pattern"]:
-                problems.append(f"pattern للحقل {name} لا يطابق المخطط")
-
-        category = fields.get("categories", {})
-        expected_slugs = [item["slug"] for item in schema["categories"]["items"]]
-        actual_slugs = [item.get("value") for item in category.get("options", [])]
-        if actual_slugs != expected_slugs or not category.get("multiple"):
-            problems.append("قائمة التصنيفات لا تطابق slugs المخطط")
-        if category.get("min") != schema["fields"]["categories"].get("min_items"):
-            problems.append("الحد الأدنى للتصنيفات لا يطابق المخطط")
-        if fields.get("featured_image", {}).get("choose_url") is not False:
-            problems.append("اختيار صورة من رابط خارجي غير معطل")
-        if fields.get("featured_image_alt", {}).get("required") is not True:
-            problems.append("النص البديل للصورة غير إلزامي")
+        for lang, posts in zip(languages, collections):
+            problems.extend(f"[{lang}] {p}" for p in collection_problems(
+                posts, lang, schema, collection_folder))
 
     media = config.get("media_libraries", {}).get("all", {})
     if media.get("max_file_size") != schema["bundle"]["max_image_bytes"]:
